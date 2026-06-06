@@ -12,7 +12,8 @@ from mcp.types import TextContent, Tool
 from memory_mcp.tools import MemoryTools
 
 app = Server("memory-mcp")
-tools_handler = MemoryTools()
+# telemetry=True : le serveur publie son activité en direct pour le tableau de bord.
+tools_handler = MemoryTools(telemetry=True)
 
 
 @app.list_tools()
@@ -20,7 +21,7 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="memory_store",
-            description="Stocke un fragment de mémoire avec tags optionnels.",
+            description="Stocke une information en mémoire (session, date, importance).",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -28,6 +29,12 @@ async def list_tools() -> list[Tool]:
                     "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags"},
                     "session": {"type": "string", "description": "ID de session"},
                     "turn": {"type": "integer", "description": "Numéro de tour"},
+                    "date": {"type": "string", "description": "Date/horodatage du souvenir (ISO)"},
+                    "importance": {
+                        "type": "number",
+                        "description": "Score d'importance (1.0 = normal)",
+                        "default": 1.0,
+                    },
                 },
                 "required": ["content"],
             },
@@ -69,6 +76,27 @@ async def list_tools() -> list[Tool]:
             description="Retourne les statistiques de consommation de tokens.",
             inputSchema={"type": "object", "properties": {}},
         ),
+        Tool(
+            name="memory_reset",
+            description="Remet la session live à zéro (compteurs, mémoire, télémétrie).",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="memory_simulate",
+            description="Joue une conversation de N tours pour alimenter la vue live "
+            "(démo : l'économie monte avec le nombre de tours).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "turns": {
+                        "type": "integer",
+                        "description": "Nombre de tours à simuler",
+                        "default": 50,
+                    },
+                    "session": {"type": "string", "description": "ID de session"},
+                },
+            },
+        ),
     ]
 
 
@@ -80,6 +108,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             tags=arguments.get("tags"),
             session=arguments.get("session", "default"),
             turn=arguments.get("turn", 0),
+            date=arguments.get("date", ""),
+            importance=arguments.get("importance", 1.0),
         )
     elif name == "memory_search":
         result = tools_handler.memory_search(
@@ -94,6 +124,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         )
     elif name == "memory_stats":
         result = tools_handler.memory_stats()
+    elif name == "memory_reset":
+        result = tools_handler.memory_reset()
+    elif name == "memory_simulate":
+        result = tools_handler.memory_simulate(
+            turns=arguments.get("turns", 50),
+            session=arguments.get("session", "live-demo"),
+        )
     else:
         raise ValueError(f"Outil inconnu : {name}")
 

@@ -3,79 +3,236 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memory MCP — Benchmark Dashboard</title>
+  <title>MemBridge — Benchmark live</title>
   <style>
-    :root { --red: #ef4444; --green: #22c55e; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; }
+    :root {
+      --bg: #0b1120; --panel: #131c31; --panel-2: #1b2742; --line: #25324f;
+      --text: #e8edf7; --muted: #94a3b8; --red: #f43f5e; --green: #22c55e;
+      --blue: #38bdf8; --amber: #fbbf24; --radius: 14px;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
-    h1 { margin-bottom: 0.5rem; }
-    .subtitle { color: #94a3b8; margin-bottom: 2rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; }
-    .card h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 1rem; }
-    .metric { font-size: 2.5rem; font-weight: 700; }
-    .metric.naive { color: var(--red); }
-    .metric.memory { color: var(--green); }
-    .savings { margin-top: 2rem; text-align: center; font-size: 1.5rem; }
-    .savings span { color: var(--green); font-weight: 700; }
-    canvas { width: 100%; height: 200px; margin-top: 1rem; }
-    .quality { margin-top: 1.5rem; }
-    .bar { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
-    .bar-fill { height: 100%; background: var(--green); transition: width 0.5s; }
-    pre { background: #0f172a; padding: 1rem; border-radius: 8px; overflow: auto; font-size: 0.8rem; margin-top: 1rem; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:
+      radial-gradient(1200px 600px at 80% -10%, #15224020, transparent), var(--bg);
+      color: var(--text); padding: 2rem clamp(1rem, 4vw, 3rem); }
+    header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.5rem; margin-bottom: 2rem; }
+    h1 { font-size: 1.7rem; letter-spacing: -.02em; }
+    h1 span { color: var(--green); }
+    .subtitle { color: var(--muted); margin-top: .3rem; font-size: .95rem; }
+
+    .controls { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; gap: .35rem; }
+    .field label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .field input { background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+      border-radius: 10px; padding: .6rem .8rem; width: 130px; font-size: 1rem; }
+    button.run { background: linear-gradient(135deg, #22c55e, #16a34a); color: #04210f; border: 0;
+      font-weight: 700; font-size: 1rem; padding: .7rem 1.3rem; border-radius: 10px; cursor: pointer;
+      transition: transform .1s, filter .2s; }
+    button.run:hover { filter: brightness(1.08); }
+    button.run:active { transform: translateY(1px); }
+    button.run:disabled { opacity: .55; cursor: not-allowed; filter: grayscale(.4); }
+
+    .status { margin-bottom: 1.5rem; min-height: 1.4rem; font-size: .92rem; color: var(--muted); display: flex; align-items: center; gap: .6rem; }
+    .spinner { width: 15px; height: 15px; border: 2px solid var(--line); border-top-color: var(--green);
+      border-radius: 50%; animation: spin .8s linear infinite; display: none; }
+    .status.loading .spinner { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hero { background: linear-gradient(135deg, #102c1e, #0d2236); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 1.8rem; display: flex; flex-wrap: wrap; align-items: center;
+      justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+    .hero .big { font-size: 3.4rem; font-weight: 800; color: var(--green); line-height: 1; }
+    .hero .big small { font-size: 1.1rem; color: var(--muted); font-weight: 500; }
+    .hero .sub { color: var(--muted); margin-top: .4rem; }
+    .hero .right { text-align: right; }
+    .hero .right .euro { font-size: 1.8rem; font-weight: 700; color: var(--amber); }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.2rem; }
+    .card h2 { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .6rem; font-weight: 600; }
+    .card .val { font-size: 1.9rem; font-weight: 700; }
+    .card .val small { font-size: .9rem; color: var(--muted); font-weight: 400; }
+    .val.red { color: var(--red); } .val.green { color: var(--green); }
+    .val.blue { color: var(--blue); } .val.amber { color: var(--amber); }
+    .card .hint { font-size: .78rem; color: var(--muted); margin-top: .35rem; }
+    .bar { height: 8px; background: var(--panel-2); border-radius: 5px; overflow: hidden; margin-top: .6rem; }
+    .bar-fill { height: 100%; background: var(--green); width: 0; transition: width .6s ease; }
+
+    .chart-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.4rem; margin-bottom: 1.5rem; }
+    canvas { width: 100%; height: 340px; display: block; }
+    .legend { display: flex; gap: 1.5rem; margin-top: .8rem; font-size: .85rem; color: var(--muted); }
+    .legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; margin-right: .45rem; vertical-align: middle; }
+
+    details { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.2rem; }
+    details summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+    pre { margin-top: 1rem; background: #0a1322; border-radius: 10px; padding: 1rem; overflow: auto; font-size: .8rem; max-height: 360px; }
+    .empty { color: var(--muted); font-style: italic; }
   </style>
 </head>
 <body>
-  <h1>Memory MCP Benchmark</h1>
-  <p class="subtitle">Hackathon INTELO2026 — Naïf vs Mémoire</p>
+  <header>
+    <div>
+      <h1>Mem<span>Bridge</span> — Benchmark live</h1>
+      <p class="subtitle">Mémoire MCP partagée · mode naïf vs mémoire · INTELO2026</p>
+      <nav style="margin-top:.6rem;display:flex;gap:.8rem;font-size:.9rem">
+        <a href="/" style="color:var(--green);font-weight:600;text-decoration:none">● Benchmark (démo)</a>
+        <a href="/live" style="color:var(--muted);text-decoration:none">○ Session live (MCP)</a>
+      </nav>
+    </div>
+    <div class="controls">
+      <div class="field">
+        <label for="turns">Nombre de tours</label>
+        <input id="turns" type="number" min="2" max="300" step="2" value="50" />
+      </div>
+      <button class="run" id="run-btn">▶ Lancer l'analyse</button>
+    </div>
+  </header>
+
+  <div class="status" id="status">
+    <span class="spinner"></span>
+    <span id="status-text">Choisissez un nombre de tours puis lancez l'analyse.</span>
+  </div>
+
+  <section class="hero">
+    <div>
+      <div class="big"><span id="savings">—</span><small>% de tokens économisés</small></div>
+      <div class="sub"><span id="saved-tokens">—</span> tokens évités vs mode naïf · <span id="turns-done">—</span> tours</div>
+    </div>
+    <div class="right">
+      <div class="euro"><span id="saved-eur">—</span> €</div>
+      <div class="sub">économisés sur la conversation</div>
+    </div>
+  </section>
 
   <div class="grid">
-    <div class="card">
-      <h2>Mode naïf (tout l'historique)</h2>
-      <div class="metric naive" id="naive-tokens">—</div>
-      <p>tokens cumulés</p>
+    <div class="card"><h2>Tokens — mode naïf</h2><div class="val red"><span id="naive-tokens">—</span></div><div class="hint">≈ <span id="naive-eur">—</span> €</div></div>
+    <div class="card"><h2>Tokens — MemBridge</h2><div class="val green"><span id="memory-tokens">—</span></div><div class="hint">≈ <span id="memory-eur">—</span> €</div></div>
+    <div class="card"><h2>Qualité — MemBridge</h2><div class="val"><span id="q-mem">—</span> <small>/ <span id="q-mem-total">—</span></small></div><div class="bar"><div class="bar-fill" id="q-bar"></div></div></div>
+    <div class="card"><h2>Qualité — naïf (réf.)</h2><div class="val blue"><span id="q-naive">—</span> <small>/ <span id="q-naive-total">—</span></small></div><div class="hint">questions pièges</div></div>
+    <div class="card"><h2>Facteur de croissance</h2><div class="val amber"><span id="growth">—</span></div><div class="hint">coût/tour (≈1 = plat)</div></div>
+    <div class="card"><h2>Ratio de compression</h2><div class="val"><span id="compression">—</span></div><div class="hint">résumé / source</div></div>
+    <div class="card"><h2>Entrées en mémoire</h2><div class="val"><span id="entries">—</span></div><div class="hint">souvenirs stockés</div></div>
+    <div class="card"><h2>Tarif appliqué</h2><div class="val"><span id="rate">—</span> <small>€/1k tk</small></div><div class="hint">configurable</div></div>
+  </div>
+
+  <div class="chart-card">
+    <h2 style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem">Consommation cumulée de tokens (tour par tour)</h2>
+    <canvas id="chart" width="1200" height="340"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--red)"></i>Naïf — tout l'historique (croissance quadratique)</span>
+      <span><i style="background:var(--green)"></i>MemBridge — résumé + souvenirs pertinents (quasi plat)</span>
     </div>
-    <div class="card">
-      <h2>Mode mémoire MCP</h2>
-      <div class="metric memory" id="memory-tokens">—</div>
-      <p>tokens cumulés</p>
-    </div>
   </div>
 
-  <div class="savings">
-    Économie : <span id="savings">—</span>
-  </div>
-
-  <div class="card quality">
-    <h2>Qualité — questions pièges</h2>
-    <p><span id="quality-score">—</span> / <span id="quality-total">—</span> réussies</p>
-    <div class="bar"><div class="bar-fill" id="quality-bar" style="width:0%"></div></div>
-  </div>
-
-  <div class="card">
-    <h2>Rapport JSON</h2>
-    <pre id="report">Chargez benchmark/results/report.json ou lancez python -m benchmark.harness > report.json</pre>
-  </div>
+  <details>
+    <summary>Rapport JSON complet</summary>
+    <pre id="report" class="empty">Lancez une analyse pour générer le rapport.</pre>
+  </details>
 
   <script>
-    // TODO équipe : brancher sur les résultats live du benchmark
-    async function loadReport() {
+    const $ = id => document.getElementById(id);
+    const fmt = n => Number(n).toLocaleString('fr-FR');
+    let lastData = null;
+
+    function setStatus(text, loading) {
+      $('status').classList.toggle('loading', !!loading);
+      $('status-text').textContent = text;
+    }
+
+    function cumulative(arr) { let s = 0; return arr.map(v => (s += v)); }
+
+    function drawChart(naive, memory) {
+      const canvas = $('chart');
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+      canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      const W = cssW, H = cssH, padL = 64, padR = 16, padT = 16, padB = 30;
+      ctx.clearRect(0, 0, W, H);
+
+      const nCum = cumulative(naive), mCum = cumulative(memory);
+      const n = Math.max(nCum.length, mCum.length, 2);
+      const maxY = Math.max(nCum[nCum.length - 1] || 1, mCum[mCum.length - 1] || 1, 1);
+      const x = i => padL + (i / (n - 1)) * (W - padL - padR);
+      const y = v => H - padB - (v / maxY) * (H - padT - padB);
+
+      // grille horizontale + labels Y
+      ctx.font = '11px system-ui'; ctx.textBaseline = 'middle';
+      for (let g = 0; g <= 4; g++) {
+        const val = maxY * g / 4, yy = y(val);
+        ctx.strokeStyle = '#1c2942'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
+        ctx.fillStyle = '#64748b'; ctx.textAlign = 'right';
+        ctx.fillText(fmt(Math.round(val)), padL - 8, yy);
+      }
+      // label X
+      ctx.fillStyle = '#64748b'; ctx.textAlign = 'center';
+      ctx.fillText('tour 1', padL, H - 10);
+      ctx.fillText('tour ' + n, W - padR - 10, H - 10);
+
+      const area = (data, color) => {
+        ctx.beginPath(); ctx.moveTo(x(0), y(0));
+        data.forEach((v, i) => ctx.lineTo(x(i), y(v)));
+        ctx.lineTo(x(data.length - 1), y(0)); ctx.closePath();
+        const grad = ctx.createLinearGradient(0, padT, 0, H - padB);
+        grad.addColorStop(0, color + '44'); grad.addColorStop(1, color + '00');
+        ctx.fillStyle = grad; ctx.fill();
+      };
+      const line = (data, color) => {
+        ctx.strokeStyle = color; ctx.lineWidth = 2.6; ctx.lineJoin = 'round';
+        ctx.beginPath();
+        data.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
+        ctx.stroke();
+      };
+      area(nCum, '#f43f5e'); area(mCum, '#22c55e');
+      line(nCum, '#f43f5e'); line(mCum, '#22c55e');
+    }
+
+    function render(d) {
+      lastData = d;
+      $('savings').textContent = d.savings_pct;
+      $('saved-tokens').textContent = fmt(d.saved_tokens);
+      $('turns-done').textContent = d.memory.turns;
+      $('saved-eur').textContent = d.cost.saved_eur;
+      $('naive-tokens').textContent = fmt(d.naive.total_tokens);
+      $('memory-tokens').textContent = fmt(d.memory.total_tokens);
+      $('naive-eur').textContent = d.cost.naive_eur;
+      $('memory-eur').textContent = d.cost.memory_eur;
+      $('q-mem').textContent = d.quality.memory.passed;
+      $('q-mem-total').textContent = d.quality.memory.total;
+      $('q-naive').textContent = d.quality.naive.passed;
+      $('q-naive-total').textContent = d.quality.naive.total;
+      $('q-bar').style.width = d.quality.score_pct + '%';
+      $('growth').textContent = Number(d.memory.growth_factor).toFixed(2);
+      $('compression').textContent = Number(d.memory.compression_ratio).toFixed(3);
+      $('entries').textContent = fmt(d.memory.stats.entries);
+      $('rate').textContent = d.cost.rate_eur_per_1k;
+      $('report').classList.remove('empty');
+      $('report').textContent = JSON.stringify(d, null, 2);
+      drawChart(d.naive.per_turn, d.memory.per_turn);
+    }
+
+    async function runAnalysis() {
+      const turns = Math.max(2, Math.min(parseInt($('turns').value) || 50, 300));
+      $('run-btn').disabled = true;
+      setStatus(`Analyse sur ${turns} tours en cours… (calcul des embeddings, ~1 min)`, true);
+      const t0 = performance.now();
       try {
-        const res = await fetch('../benchmark/results/report.json');
+        const res = await fetch(`/api/run?turns=${turns}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
-        document.getElementById('naive-tokens').textContent = data.naive.total_tokens.toLocaleString();
-        document.getElementById('memory-tokens').textContent = data.memory.total_tokens.toLocaleString();
-        document.getElementById('savings').textContent = `-${data.savings_pct}% tokens`;
-        document.getElementById('quality-score').textContent = data.quality.passed;
-        document.getElementById('quality-total').textContent = data.quality.total;
-        document.getElementById('quality-bar').style.width = data.quality.score_pct + '%';
-        document.getElementById('report').textContent = JSON.stringify(data, null, 2);
-      } catch {
-        document.getElementById('report').textContent =
-          'Aucun rapport trouvé. Exécutez : python -m benchmark.harness';
+        render(data);
+        const secs = data.elapsed_sec ?? ((performance.now() - t0) / 1000).toFixed(1);
+        setStatus(`Analyse terminée en ${secs}s · ${data.savings_pct}% d'économie · qualité ${data.quality.memory.passed}/${data.quality.memory.total}`, false);
+      } catch (e) {
+        setStatus(`Erreur : ${e.message}. Le serveur est-il lancé ? (python dashboard/server.py)`, false);
+      } finally {
+        $('run-btn').disabled = false;
       }
     }
-    loadReport();
+
+    $('run-btn').addEventListener('click', runAnalysis);
+    window.addEventListener('resize', () => { if (lastData) drawChart(lastData.naive.per_turn, lastData.memory.per_turn); });
   </script>
 </body>
 </html>

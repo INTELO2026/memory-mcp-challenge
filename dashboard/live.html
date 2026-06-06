@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemBridge — Session live (MCP)</title>
+  <style>
+    :root {
+      --bg: #0b1120; --panel: #131c31; --panel-2: #1b2742; --line: #25324f;
+      --text: #e8edf7; --muted: #94a3b8; --red: #f43f5e; --green: #22c55e;
+      --blue: #38bdf8; --amber: #fbbf24; --radius: 14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 600px at 80% -10%, #15224020, transparent), var(--bg);
+      color: var(--text); padding: 2rem clamp(1rem, 4vw, 3rem); }
+    header { margin-bottom: 1.6rem; }
+    h1 { font-size: 1.7rem; letter-spacing: -.02em; }
+    h1 span { color: var(--green); }
+    .subtitle { color: var(--muted); margin-top: .3rem; font-size: .95rem; }
+    nav { margin-top: .6rem; display: flex; gap: .8rem; font-size: .9rem; }
+    nav a { text-decoration: none; color: var(--muted); }
+    nav a.active { color: var(--green); font-weight: 600; }
+
+    .toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+    .pill { display: inline-flex; align-items: center; gap: .5rem; background: var(--panel-2);
+      border: 1px solid var(--line); border-radius: 999px; padding: .45rem .9rem; font-size: .85rem; color: var(--muted); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+    .dot.on { background: var(--green); box-shadow: 0 0 0 4px #22c55e22; animation: pulse 1.6s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    button { background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+      border-radius: 10px; padding: .55rem 1rem; cursor: pointer; font-size: .9rem; }
+    button.primary { background: linear-gradient(135deg, #22c55e, #16a34a); color: #04210f; border: 0; font-weight: 700; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+
+    .hero { background: linear-gradient(135deg, #102c1e, #0d2236); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 1.8rem; margin-bottom: 1.5rem; }
+    .hero .big { font-size: 3.6rem; font-weight: 800; color: var(--green); line-height: 1; }
+    .hero .big small { font-size: 1.05rem; color: var(--muted); font-weight: 500; }
+    .hero .sub { color: var(--muted); margin-top: .5rem; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.2rem; }
+    .card h2 { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .6rem; font-weight: 600; }
+    .card .val { font-size: 1.9rem; font-weight: 700; }
+    .val.red{color:var(--red)} .val.green{color:var(--green)} .val.blue{color:var(--blue)} .val.amber{color:var(--amber)}
+    .card .hint { font-size: .78rem; color: var(--muted); margin-top: .35rem; }
+
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-bottom: 1.5rem; }
+    @media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+    .compare { display: flex; align-items: center; justify-content: space-around; gap: 1rem; text-align: center; }
+    .compare .num { font-size: 2.4rem; font-weight: 800; }
+    .compare .lbl { color: var(--muted); font-size: .85rem; margin-top: .3rem; }
+    .vs { color: var(--muted); font-weight: 700; }
+
+    .feed { max-height: 280px; overflow: auto; }
+    .feed .row { display: flex; justify-content: space-between; gap: 1rem; padding: .5rem 0; border-bottom: 1px solid var(--line); font-size: .85rem; }
+    .feed .row:last-child { border-bottom: 0; }
+    .feed .ev { color: var(--text); }
+    .feed .ts { color: var(--muted); white-space: nowrap; }
+    .empty { color: var(--muted); font-style: italic; }
+    .note { font-size: .8rem; color: var(--muted); margin-top: .5rem; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Mem<span>Bridge</span> — Session live</h1>
+    <p class="subtitle">Données envoyées en direct par le serveur MCP appelé depuis Cursor</p>
+    <nav>
+      <a href="/">○ Benchmark (démo)</a>
+      <a href="/live" class="active">● Session live (MCP)</a>
+    </nav>
+  </header>
+
+  <div class="toolbar">
+    <span class="pill"><span class="dot" id="live-dot"></span><span id="live-state">En attente…</span></span>
+    <span class="pill">Dernière maj : <span id="updated">—</span></span>
+    <button id="toggle">⏸ Pause auto-refresh</button>
+    <button id="reset">↺ Réinitialiser</button>
+    <button class="primary" id="run-demo">▶ Lancer la démo (30 tours)</button>
+  </div>
+
+  <section class="hero">
+    <div class="big"><span id="live-savings">—</span><small>% de données économisées (live)</small></div>
+    <div class="sub">À chaque récupération, le serveur renvoie un extrait ciblé au lieu de toute la mémoire.</div>
+  </section>
+
+  <div class="grid">
+    <div class="card"><h2>Tokens sous gestion</h2><div class="val blue"><span id="stored">—</span></div><div class="hint">ce qu'un agent naïf renverrait/tour</div></div>
+    <div class="card"><h2>Tokens réellement envoyés</h2><div class="val green"><span id="sent">—</span></div><div class="hint">extraits restitués au modèle</div></div>
+    <div class="card"><h2>Tokens économisés</h2><div class="val amber"><span id="saved">—</span></div><div class="hint">cumul sur la session</div></div>
+    <div class="card"><h2>Entrées en mémoire</h2><div class="val"><span id="entries">—</span></div><div class="hint">souvenirs stockés</div></div>
+    <div class="card"><h2>Appels store</h2><div class="val"><span id="c-store">—</span></div></div>
+    <div class="card"><h2>Appels search</h2><div class="val"><span id="c-search">—</span></div></div>
+    <div class="card"><h2>Appels summarize</h2><div class="val"><span id="c-sum">—</span></div></div>
+    <div class="card"><h2>Total tokens (in+out)</h2><div class="val"><span id="total">—</span></div></div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h2>Comparaison Démo vs Live</h2>
+      <div class="compare">
+        <div><div class="num" id="cmp-demo" style="color:var(--blue)">—</div><div class="lbl">Démo benchmark</div></div>
+        <div class="vs">vs</div>
+        <div><div class="num" id="cmp-live" style="color:var(--green)">—</div><div class="lbl">Session live MCP</div></div>
+      </div>
+      <p class="note">
+        <b>Démo</b> : économie sur une conversation rejouée de bout en bout (coût contextuel cumulé naïf vs mémoire).
+        <b>Live</b> : économie moyenne par récupération réelle déclenchée depuis Cursor. Les deux mesurent la même idée — renvoyer le strict nécessaire — sur des périmètres différents.
+      </p>
+    </div>
+    <div class="card">
+      <h2>Activité MCP récente</h2>
+      <div class="feed" id="feed"><span class="empty">Aucun appel encore. Demandez à l'agent Cursor d'utiliser memory_store / memory_search / memory_summarize.</span></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const fmt = n => Number(n).toLocaleString('fr-FR');
+    let polling = true;
+
+    const KPI_IDS = ['live-savings','stored','sent','saved','entries','c-store','c-search','c-sum','total','cmp-live'];
+
+    function clearDisplay() {
+      KPI_IDS.forEach(id => $(id).textContent = '—');
+      $('updated').textContent = '—';
+      $('live-state').textContent = 'En attente d\'activité MCP';
+      $('live-dot').classList.remove('on');
+      $('feed').innerHTML = '<span class="empty">Aucun appel encore. Demandez à l\'agent Cursor d\'utiliser memory_store / memory_search / memory_summarize.</span>';
+    }
+
+    function isStale(d) {
+      if (!d.updated_at) return false;
+      const ts = Date.parse(d.updated_at);
+      return Number.isFinite(ts) && (Date.now() - ts) > 60000;
+    }
+
+    function renderLive(d) {
+      if (d.empty) {
+        clearDisplay();
+        return;
+      }
+      const stale = isStale(d);
+      $('live-dot').classList.toggle('on', !stale);
+      $('live-state').textContent = stale ? 'Données de la session précédente (inactives)' : 'Serveur MCP actif';
+      $('updated').textContent = (d.updated_at || '—').replace('T', ' ').replace('+00:00', ' UTC');
+      $('live-savings').textContent = d.savings_pct;
+      const s = d.stats || {};
+      $('stored').textContent = fmt(s.stored_tokens || 0);
+      $('sent').textContent = fmt(s.output_tokens || 0);
+      $('saved').textContent = fmt(s.saved_tokens || 0);
+      $('entries').textContent = fmt(s.entries || 0);
+      $('c-store').textContent = fmt(s.store_calls || 0);
+      $('c-search').textContent = fmt(s.search_calls || 0);
+      $('c-sum').textContent = fmt(s.summarize_calls || 0);
+      $('total').textContent = fmt(s.total_tokens || 0);
+      $('cmp-live').textContent = d.savings_pct + '%';
+
+      const events = d.events || [];
+      $('feed').innerHTML = events.length
+        ? events.map(e => `<div class="row"><span class="ev">${e.event}</span><span class="ts">${(e.t||'').replace('T',' ').replace('+00:00','')}</span></div>`).join('')
+        : '<span class="empty">Aucun appel encore.</span>';
+    }
+
+    async function pollLive() {
+      if (!polling) return;
+      try {
+        const r = await fetch('/api/live', { cache: 'no-store' });
+        renderLive(await r.json());
+      } catch (e) { /* serveur indisponible */ }
+    }
+
+    async function loadDemo() {
+      try {
+        const r = await fetch('/api/report', { cache: 'no-store' });
+        const d = await r.json();
+        if (!d.empty) $('cmp-demo').textContent = d.savings_pct + '%';
+      } catch (e) {}
+    }
+
+    async function runDemo() {
+      $('run-demo').disabled = true;
+      $('run-demo').textContent = 'Analyse en cours…';
+      try {
+        const r = await fetch('/api/run?turns=30', { cache: 'no-store' });
+        const d = await r.json();
+        $('cmp-demo').textContent = d.savings_pct + '%';
+      } catch (e) {} finally {
+        $('run-demo').disabled = false;
+        $('run-demo').textContent = '▶ Lancer la démo (30 tours)';
+      }
+    }
+
+    $('toggle').addEventListener('click', () => {
+      polling = !polling;
+      $('toggle').textContent = polling ? '⏸ Pause auto-refresh' : '▶ Reprendre auto-refresh';
+      if (polling) pollLive();
+    });
+    $('run-demo').addEventListener('click', runDemo);
+
+    $('reset').addEventListener('click', async () => {
+      const wasPolling = polling;
+      polling = false;
+      $('reset').disabled = true;
+      try {
+        await fetch('/api/live/reset', { cache: 'no-store' });
+        clearDisplay();
+      } catch (e) {} finally {
+        $('reset').disabled = false;
+        polling = wasPolling;
+      }
+    });
+
+    loadDemo();
+    pollLive();
+    setInterval(pollLive, 2000);
+  </script>
+</body>
+</html>
