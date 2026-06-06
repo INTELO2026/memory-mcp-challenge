@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "membridge": {
+      "command": "REPLACE_WITH_VENV_PYTHON",
+      "args": ["-m", "memory_mcp.server"],
+      "env": {
+        "PYTHONPATH": "src;."
+      }
+    }
+  }
+}
