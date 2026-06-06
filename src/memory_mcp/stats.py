@@ -9,6 +9,8 @@ class TokenStats:
 
     input_tokens: int = 0
     output_tokens: int = 0
+    stored_tokens: int = 0
+    saved_tokens: int = 0
     store_calls: int = 0
     search_calls: int = 0
     summarize_calls: int = 0
@@ -19,6 +21,14 @@ class TokenStats:
     def add_output(self, tokens: int) -> None:
         self.output_tokens += tokens
 
+    def add_stored(self, tokens: int) -> None:
+        """Tokens entrés en mémoire (ce qu'un agent naïf renverrait à chaque tour)."""
+        self.stored_tokens += tokens
+
+    def add_saved(self, tokens: int) -> None:
+        """Tokens économisés en restituant un extrait plutôt que toute la mémoire."""
+        self.saved_tokens += max(0, tokens)
+
     def total(self) -> int:
         return self.input_tokens + self.output_tokens
 
@@ -27,6 +37,8 @@ class TokenStats:
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "total_tokens": self.total(),
+            "stored_tokens": self.stored_tokens,
+            "saved_tokens": self.saved_tokens,
             "store_calls": self.store_calls,
             "search_calls": self.search_calls,
             "summarize_calls": self.summarize_calls,
