@@ -3,79 +3,108 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memory MCP — Benchmark Dashboard</title>
-  <style>
-    :root { --red: #ef4444; --green: #22c55e; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
-    h1 { margin-bottom: 0.5rem; }
-    .subtitle { color: #94a3b8; margin-bottom: 2rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; }
-    .card h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 1rem; }
-    .metric { font-size: 2.5rem; font-weight: 700; }
-    .metric.naive { color: var(--red); }
-    .metric.memory { color: var(--green); }
-    .savings { margin-top: 2rem; text-align: center; font-size: 1.5rem; }
-    .savings span { color: var(--green); font-weight: 700; }
-    canvas { width: 100%; height: 200px; margin-top: 1rem; }
-    .quality { margin-top: 1.5rem; }
-    .bar { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
-    .bar-fill { height: 100%; background: var(--green); transition: width 0.5s; }
-    pre { background: #0f172a; padding: 1rem; border-radius: 8px; overflow: auto; font-size: 0.8rem; margin-top: 1rem; }
-  </style>
+  <title>MemBridge — Benchmark Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>Memory MCP Benchmark</h1>
-  <p class="subtitle">Hackathon INTELO2026 — Naïf vs Mémoire</p>
-
-  <div class="grid">
-    <div class="card">
-      <h2>Mode naïf (tout l'historique)</h2>
-      <div class="metric naive" id="naive-tokens">—</div>
-      <p>tokens cumulés</p>
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="brand">
+        <span class="logo">◆</span>
+        <div>
+          <h1>MemBridge</h1>
+          <p class="subtitle">Mémoire MCP partagée — naïf vs MemBridge, chiffres réels</p>
+        </div>
+      </div>
+      <div class="badge" id="embedder-badge">embedder: —</div>
     </div>
-    <div class="card">
-      <h2>Mode mémoire MCP</h2>
-      <div class="metric memory" id="memory-tokens">—</div>
-      <p>tokens cumulés</p>
-    </div>
-  </div>
+  </header>
 
-  <div class="savings">
-    Économie : <span id="savings">—</span>
-  </div>
+  <main>
+    <section class="savings-banner" id="savings-banner">
+      <div class="savings-main">
+        <span class="savings-pct" id="savings-pct">—</span>
+        <span class="savings-label">d'économie de tokens</span>
+      </div>
+      <div class="savings-sub">
+        <div><strong id="savings-tokens">—</strong><span>tokens économisés</span></div>
+        <div class="sep"></div>
+        <div><strong id="savings-eur">—</strong><span>coût évité (€)</span></div>
+      </div>
+    </section>
 
-  <div class="card quality">
-    <h2>Qualité — questions pièges</h2>
-    <p><span id="quality-score">—</span> / <span id="quality-total">—</span> réussies</p>
-    <div class="bar"><div class="bar-fill" id="quality-bar" style="width:0%"></div></div>
-  </div>
+    <section class="cards">
+      <div class="card metric-card naive">
+        <h2>Mode naïf</h2>
+        <p class="hint">Tout l'historique renvoyé à chaque tour</p>
+        <div class="metric" id="naive-tokens">—</div>
+        <p class="unit">tokens cumulés · <span id="naive-eur">—</span> €</p>
+      </div>
+      <div class="card metric-card memory">
+        <h2>Mode MemBridge</h2>
+        <p class="hint">Résumé + souvenirs pertinents (MCP)</p>
+        <div class="metric" id="memory-tokens">—</div>
+        <p class="unit">tokens cumulés · <span id="memory-eur">—</span> €</p>
+      </div>
+    </section>
 
-  <div class="card">
-    <h2>Rapport JSON</h2>
-    <pre id="report">Chargez benchmark/results/report.json ou lancez python -m benchmark.harness > report.json</pre>
-  </div>
+    <section class="card chart-card">
+      <div class="chart-head">
+        <h2>Consommation cumulée de tokens</h2>
+        <div class="legend">
+          <span class="legend-item"><span class="dot naive-dot"></span>Naïf (quadratique)</span>
+          <span class="legend-item"><span class="dot memory-dot"></span>MemBridge (plat)</span>
+        </div>
+      </div>
 
-  <script>
-    // TODO équipe : brancher sur les résultats live du benchmark
-    async function loadReport() {
-      try {
-        const res = await fetch('../benchmark/results/report.json');
-        const data = await res.json();
-        document.getElementById('naive-tokens').textContent = data.naive.total_tokens.toLocaleString();
-        document.getElementById('memory-tokens').textContent = data.memory.total_tokens.toLocaleString();
-        document.getElementById('savings').textContent = `-${data.savings_pct}% tokens`;
-        document.getElementById('quality-score').textContent = data.quality.passed;
-        document.getElementById('quality-total').textContent = data.quality.total;
-        document.getElementById('quality-bar').style.width = data.quality.score_pct + '%';
-        document.getElementById('report').textContent = JSON.stringify(data, null, 2);
-      } catch {
-        document.getElementById('report').textContent =
-          'Aucun rapport trouvé. Exécutez : python -m benchmark.harness';
-      }
-    }
-    loadReport();
-  </script>
+      <div class="chart-wrap">
+        <canvas id="chart" width="1000" height="380"></canvas>
+        <div class="tooltip" id="tooltip" hidden></div>
+      </div>
+
+      <div class="live-readout" id="live-readout">
+        <span class="live-turn">tour <strong id="live-turn">—</strong></span>
+        <span class="live-pill naive"><span class="dot naive-dot"></span>naïf <strong id="live-naive">—</strong></span>
+        <span class="live-pill memory"><span class="dot memory-dot"></span>MemBridge <strong id="live-memory">—</strong></span>
+        <span class="live-pill gap">écart <strong id="live-gap">—</strong></span>
+      </div>
+
+      <div class="chart-controls">
+        <button class="btn" id="play-btn" type="button" aria-label="Rejouer l'animation">▶ Rejouer</button>
+        <input class="scrubber" id="scrubber" type="range" min="0" max="0" value="0" step="1"
+               aria-label="Curseur de tour" />
+      </div>
+    </section>
+
+    <section class="cards three">
+      <div class="card stat">
+        <h3>Qualité — questions pièges</h3>
+        <div class="quality-score"><span id="quality-passed">—</span> / <span id="quality-total">—</span></div>
+        <div class="bar"><div class="bar-fill" id="quality-bar"></div></div>
+        <p class="hint" id="quality-note">réussies grâce à memory_search</p>
+      </div>
+      <div class="card stat">
+        <h3>Compression du résumé</h3>
+        <div class="stat-val" id="compression">—</div>
+        <p class="hint">taille résumé / source (plus bas = mieux)</p>
+      </div>
+      <div class="card stat">
+        <h3>Stabilité du contexte</h3>
+        <div class="stat-val" id="growth">—</div>
+        <p class="hint">facteur de croissance (≈ 1 = plateau)</p>
+      </div>
+    </section>
+
+    <section class="card quality-detail">
+      <h3>Détail des questions pièges</h3>
+      <ul id="quality-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>Généré par <code>python -m benchmark.harness</code> · données : <code>results/report.json</code></p>
+  </footer>
+
+  <script src="app.js"></script>
 </body>
 </html>

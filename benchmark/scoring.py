@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 from memory_mcp.stats import count_tokens
-from memory_mcp.tools import MemoryTools
+from memory_mcp.tools import MemoryTools, strip_role
 
 
 def per_turn_context_tokens(tools: MemoryTools, session: str, query: str) -> int:
-    """Tokens du contexte LLM pour un tour (résumé + recherche)."""
+    """Tokens du contexte LLM pour un tour (résumé + recherche).
+
+    Les souvenirs sont injectés sans préfixe de rôle (non informatif) : on garde
+    le fait, on supprime le verbiage -> aucune perte d'information.
+    """
     summary = tools.memory_summarize(session=session)
     search = tools.memory_search(query=query, top_k=3, session=session)
-    context = summary["summary"] + "\n" + "\n".join(r["content"] for r in search["results"])
+    memories = "\n".join(strip_role(r["content"]) for r in search["results"])
+    context = summary["summary"] + "\n" + memories
     return count_tokens(context)
 
 
