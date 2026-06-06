@@ -9,13 +9,15 @@ build/
 .venv/
 venv/
 env/
+.pytest_cache/
 
 # Data & secrets
 *.db
 *.sqlite
 .env
 .env.*
-
+!.env.example
+*.pdf
 # IDE
 .idea/
 .vscode/
@@ -23,6 +25,7 @@ env/
 
 # Benchmark outputs
 benchmark/results/
+dashboard/results/
 *.json.bak
 
 # Dépôt privé eval (ne pas publier dans le repo public)
