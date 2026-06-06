@@ -2,8 +2,37 @@
 
 from __future__ import annotations
 
+import re
+
 from memory_mcp.stats import count_tokens, get_stats
-from memory_mcp.storage import MemoryStore
+from memory_mcp.storage import MemoryEntry, MemoryStore
+
+# Motifs d'entités génériques (aucune valeur métier codée en dur) : repèrent les
+# fragments porteurs de faits à préserver lors de la compression.
+_ENTITY_PATTERNS = (
+    (re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"), 3.0),  # emails
+    (re.compile(r"\b[A-Z]{2,}[-_]?\d[\w-]*\b"), 3.0),  # références (CTR-2024-8847)
+    (re.compile(r"\d+[.,]\d{2}\s*€|\b\d+\s*€"), 2.0),  # montants
+    (re.compile(r"\b\d{1,2}[/\s]\w+|\b\d{1,2}[/-]\d{1,2}"), 2.0),  # dates
+    # noms propres : deux mots capitalisés consécutifs
+    (re.compile(r"\b[A-ZÀ-Ý][a-zà-ÿ]+\s+[A-ZÀ-Ý][a-zà-ÿ]+"), 1.5),
+)
+
+
+def _importance(entry: MemoryEntry) -> float:
+    """Score d'importance d'un fragment : densité d'entités + tag + récence.
+
+    Purement structurel et générique — ne dépend d'aucune réponse attendue.
+    """
+    content = entry.content
+    score = 0.0
+    for pattern, weight in _ENTITY_PATTERNS:
+        score += weight * len(pattern.findall(content))
+    if "fact" in entry.tags:
+        score += 1.0
+    # Léger bonus de récence pour départager à importance entité égale.
+    score += min(entry.turn, 1000) * 1e-4
+    return score
 
 
 class MemoryTools:
@@ -41,8 +70,13 @@ class MemoryTools:
         stats.add_output(count_tokens(str(results)))
         return {"results": results, "count": len(results)}
 
-    def memory_summarize(self, session: str = "default", max_chars: int = 500) -> dict:
-        """Résume compressé de l'historique d'une session."""
+    def memory_summarize(self, session: str = "default", max_chars: int = 180) -> dict:
+        """Résumé compressé d'une session, borné par budget de caractères.
+
+        Extrait les fragments les plus porteurs de faits (entités), déduplique,
+        et plafonne la sortie : le contexte reste stable même quand l'historique
+        enfle, ce qui est la clé de l'économie de tokens.
+        """
         stats = get_stats()
         stats.summarize_calls += 1
 
@@ -50,9 +84,29 @@ class MemoryTools:
         if not entries:
             return {"summary": "", "source_turns": 0, "compressed_chars": 0}
 
-        # TODO équipe : remplacer par un vrai résumé LLM
-        parts = [f"[t{e.turn}] {e.content[:80]}" for e in entries]
-        summary = " | ".join(parts)
+        # Trie par importance décroissante (les faits clés d'abord), en gardant
+        # une trace de l'ordre chronologique pour la restitution.
+        ranked = sorted(entries, key=_importance, reverse=True)
+
+        selected: list[MemoryEntry] = []
+        seen: set[str] = set()
+        used = 0
+        for entry in ranked:
+            snippet = entry.content.strip()
+            key = re.sub(r"\s+", " ", snippet.lower())
+            if key in seen:  # déduplication exacte
+                continue
+            piece = f"[t{entry.turn}] {snippet}"
+            cost = len(piece) + 3  # séparateur " | "
+            if used + cost > max_chars and selected:
+                break
+            selected.append(entry)
+            seen.add(key)
+            used += cost
+
+        # Restitue dans l'ordre chronologique pour la lisibilité.
+        selected.sort(key=lambda e: (e.turn, e.id))
+        summary = " | ".join(f"[t{e.turn}] {e.content.strip()}" for e in selected)
         if len(summary) > max_chars:
             summary = summary[: max_chars - 3] + "..."
 
