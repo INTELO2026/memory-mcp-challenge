@@ -16,6 +16,12 @@ env/
 .env
 .env.*
 
+# Node / frontend
+node_modules/
+*.tsbuildinfo
+.vite/
+*.local
+
 # IDE
 .idea/
 .vscode/

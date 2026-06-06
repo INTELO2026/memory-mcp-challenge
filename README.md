@@ -23,41 +23,85 @@ Les tests cachés ne sont **pas dans ce dépôt**. Même avec l'IA, il faut une 
 | **Naïf** | Renvoie tout l'historique à chaque tour | Croissance quadratique |
 | **Mémoire MCP** | Stocke, recherche, résume | Quasi plat |
 
+## Architecture de la solution (MemBridge)
+
+À chaque tour, l'agent n'envoie plus tout l'historique : il appelle le serveur MCP.
+
+```
+Tour N → memory_store(message)   → embedding Gemini (retrieval_document) → SQLite
+       → memory_search(message)  → embedding Gemini (retrieval_query) → top-k souvenirs
+       → memory_summarize(session) → résumé compressé des faits importants
+       → le LLM reçoit ~résumé + k souvenirs (~700 tk) au lieu de N×500 tk
+```
+
+- **Embeddings** : `gemini-embedding-001` (768 dims) en backend principal. Fallback
+  local automatique (`sentence-transformers`, modèle e5 multilingue) si aucune clé,
+  puis secours lexical déterministe. Voir `src/memory_mcp/embeddings.py`.
+- **Stockage vectoriel** : SQLite + similarité cosinus (numpy), avec **hiérarchie de
+  pertinence** (récence + importance estimée + fréquence d'accès) en départage.
+- **Résumé** : sélection extractive des tours les plus *importants* (densité
+  d'entités : identifiants, emails, montants, noms) → compression forte sans perdre
+  les faits clés.
+
 ## Structure
 
 ```
 memory-mcp-challenge/
-├── src/memory_mcp/     # Serveur MCP + 4 outils
-├── benchmark/          # Harnais naïf vs mémoire
-├── demo/               # Agent de démo (stub)
-├── dashboard/          # Visualisation benchmark
-├── tests/
-│   ├── test_smoke.py       # API OK
-│   └── test_regression.py  # Barre finale (dur)
-└── .github/workflows/  # CI multi-niveaux
+├── src/memory_mcp/
+│   ├── server.py        # Serveur MCP (stdio) + 4 outils
+│   ├── tools.py         # store / search / summarize / stats
+│   ├── storage.py       # SQLite + recherche sémantique + ranking
+│   ├── embeddings.py    # Gemini (principal) + fallback local + secours
+│   └── stats.py         # Compteur de tokens
+├── benchmark/
+│   ├── scenario.json    # Conversation scriptée + questions pièges
+│   ├── harness.py       # Rapport complet (tokens, €, qualité) → results/report.json
+│   ├── live.py          # Rejeu live (courbes qui montent en direct)
+│   └── naive.py / scoring.py
+├── demo/agent.py        # Démo support client + questions pièges
+├── dashboard/index.html # 2 courbes live + économie + qualité (polling 1 s)
+└── tests/ + .github/workflows/
 ```
 
 ## Installation
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate        # Windows
+.venv\Scripts\activate        # Windows ; sinon : source .venv/bin/activate
 pip install -e ".[dev]"
+
+# Embeddings Gemini (recommandé) :
+cp .env.example .env          # puis renseigner GEMINI_API_KEY
+# OU mode 100 % hors-ligne (tire torch + modèle e5) :
+pip install -e ".[local]"
 ```
 
-## Utilisation
+## Démo live (ce que voit le jury)
 
 ```bash
-# Tests fumée (doivent passer)
-pytest tests/test_smoke.py -v
+# Terminal 1 — rejoue le scénario, met à jour report.json en continu
+python -m benchmark.live
 
-# Tests régression (doivent passer pour merger)
-PYTHONPATH=src:. pytest tests/test_regression.py tests/test_storage.py tests/test_tools.py -v
+# Terminal 2 — sert le dashboard puis ouvrir http://localhost:8000/dashboard/
+python -m http.server 8000
+```
 
-# Benchmark
+La courbe **rouge** (naïf) explose, la **verte** (MemBridge) reste plate ; l'encadré
+affiche l'économie en tokens / € et le score des questions pièges.
+
+## Autres commandes
+
+```bash
+# Rapport chiffré one-shot (écrit benchmark/results/report.json)
 python -m benchmark.harness
 
-# Serveur MCP
+# Démo console (économie + questions pièges réussies)
+python -m demo.agent
+
+# Tests
+pytest -v
+
+# Serveur MCP (stdio)
 memory-mcp
 ```
 
@@ -65,10 +109,16 @@ memory-mcp
 
 | Outil | Description |
 |-------|-------------|
-| `memory_store(content, tags)` | Stocke un fragment de mémoire |
-| `memory_search(query, top_k)` | Recherche **sémantique** (paraphrases !) |
-| `memory_summarize(session)` | Résumé **compressé** conservant les faits |
-| `memory_stats()` | Tokens consommés |
+| `memory_store(content, tags, session, turn, importance?)` | Stocke + embed + métadonnées |
+| `memory_search(query, top_k, session?)` | Recherche **sémantique** (paraphrases !) + ranking |
+| `memory_summarize(session, max_chars)` | Résumé **compressé** conservant les faits |
+| `memory_stats()` | Tokens consommés, nb d'entrées, backend |
+
+## CI
+
+Le job `regression` et `finale-eval` utilisent les embeddings Gemini : ajouter le
+secret **`GEMINI_API_KEY`** dans *Settings → Secrets → Actions*. Sans clé, ajouter
+`pip install -e ".[local]"` à l'étape d'install pour activer le fallback local.
 
 ## Critères de merge (PR)
 

@@ -1,0 +1,24 @@
+{
+  "name": "membridge-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API NestJS pour le tableau de bord MemBridge (pont vers le moteur mémoire Python)",
+  "scripts": {
+    "start": "ts-node src/main.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.0",
+    "@nestjs/core": "^10.4.0",
+    "@nestjs/platform-express": "^10.4.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.0"
+  }
+}

@@ -7,9 +7,16 @@ requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.0.0",
     "tiktoken>=0.7.0",
+    "numpy>=1.26",
+    "google-genai>=0.3.0",
 ]
 
 [project.optional-dependencies]
+# Fallback d'embeddings local (hors-ligne) quand aucune clé Gemini n'est dispo.
+# Tire torch ; à installer pour un mode 100 % hors-ligne.
+local = [
+    "sentence-transformers>=3.0.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
