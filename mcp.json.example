@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "memory-mcp": {
+      "command": "C:\\Python314\\python.exe",
+      "args": ["-m", "memory_mcp.server"],
+      "cwd": "C:\\Users\\Hp\\Desktop\\memory-mcp-challenge",
+      "env": {
+        "PYTHONPATH": "C:\\Users\\Hp\\Desktop\\memory-mcp-challenge\\src"
+      }
+    }
+  }
+}

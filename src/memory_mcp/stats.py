@@ -44,6 +44,12 @@ def get_stats() -> TokenStats:
 def reset_stats() -> None:
     global _stats
     _stats = TokenStats()
+    try:
+        from memory_mcp.live import reset_live
+
+        reset_live()
+    except Exception:
+        pass
 
 
 def count_tokens(text: str) -> int:

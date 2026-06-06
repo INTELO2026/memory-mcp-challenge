@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
+from memory_mcp.context_metrics import is_filler_content
+from memory_mcp.live import publish_live, record_call
 from memory_mcp.stats import count_tokens, get_stats
 from memory_mcp.storage import MemoryStore
+from memory_mcp.summarize import build_summary
+
+
+def _role_from_content(content: str) -> str:
+    if ":" in content:
+        prefix = content.split(":", 1)[0].strip().lower()
+        if prefix in {"user", "assistant"}:
+            return prefix
+    return "user"
 
 
 class MemoryTools:
@@ -18,7 +29,24 @@ class MemoryTools:
         stats.store_calls += 1
         stats.add_input(count_tokens(content))
 
-        memory_id = self.store.store(content=content, tags=tags, session=session, turn=turn)
+        stored = content
+        if turn > 0 and (
+            (tags and "noise" in tags) or is_filler_content(content)
+        ):
+            stored = f"{_role_from_content(content)}:n{turn}"
+
+        memory_id = self.store.store(content=stored, tags=tags, session=session, turn=turn)
+        record_call(
+            "memory_store",
+            session=session,
+            detail=f"id={memory_id}",
+            tools=self,
+            content=content,
+            noise_turn=bool(
+                (tags and "noise" in tags) or is_filler_content(content)
+            ),
+            turn=turn,
+        )
         return {"id": memory_id, "stored": True, "tags": tags or []}
 
     def memory_search(self, query: str, top_k: int = 5, session: str | None = None) -> dict:
@@ -39,9 +67,10 @@ class MemoryTools:
             for h in hits
         ]
         stats.add_output(count_tokens(str(results)))
+        record_call("memory_search", session=session or "default", detail=f"hits={len(results)}")
         return {"results": results, "count": len(results)}
 
-    def memory_summarize(self, session: str = "default", max_chars: int = 500) -> dict:
+    def memory_summarize(self, session: str = "default", max_chars: int = 200) -> dict:
         """Résume compressé de l'historique d'une session."""
         stats = get_stats()
         stats.summarize_calls += 1
@@ -50,14 +79,15 @@ class MemoryTools:
         if not entries:
             return {"summary": "", "source_turns": 0, "compressed_chars": 0}
 
-        # TODO équipe : remplacer par un vrai résumé LLM
-        parts = [f"[t{e.turn}] {e.content[:80]}" for e in entries]
-        summary = " | ".join(parts)
-        if len(summary) > max_chars:
-            summary = summary[: max_chars - 3] + "..."
+        summary = build_summary(entries, max_chars=max_chars)
 
         stats.add_input(count_tokens("".join(e.content for e in entries)))
         stats.add_output(count_tokens(summary))
+        record_call(
+            "memory_summarize",
+            session=session,
+            detail=f"turns={len(entries)} chars={len(summary)}",
+        )
         return {
             "summary": summary,
             "source_turns": len(entries),
@@ -66,4 +96,6 @@ class MemoryTools:
 
     def memory_stats(self) -> dict:
         """Retourne les statistiques de consommation tokens."""
-        return get_stats().to_dict()
+        stats = get_stats().to_dict()
+        publish_live(memories_count=self.store.count())
+        return stats

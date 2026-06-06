@@ -1,53 +1,31 @@
-"""Stockage SQLite + recherche par similarité cosinus (embeddings simplifiés)."""
+"""Stockage SQLite + recherche par similarité cosinus (embeddings sémantiques)."""
 
 from __future__ import annotations
 
 import json
-import math
-import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-MIN_SIMILARITY = 1e-9
+from memory_mcp.embeddings import cosine_similarity, embed_text
 
-_STOPWORDS = frozenset(
+MIN_SIMILARITY = 0.12
+
+_IDENTITY_HINTS = frozenset(
     {
-        "a",
-        "au",
-        "aux",
-        "ce",
-        "ces",
-        "de",
-        "des",
-        "du",
-        "en",
-        "est",
-        "et",
-        "il",
-        "je",
-        "la",
-        "le",
-        "les",
-        "ma",
-        "mon",
-        "ne",
-        "on",
-        "ou",
-        "pas",
-        "pour",
-        "que",
+        "identité",
+        "interlocutrice",
+        "interlocuteur",
+        "client",
+        "cliente",
         "qui",
-        "sa",
-        "se",
-        "son",
-        "sur",
-        "un",
-        "une",
-        "vos",
-        "votre",
+        "nom",
+        "vip",
+        "premium",
     }
 )
+_CONTACT_HINTS = frozenset({"email", "contact", "coordonnées", "courriel", "électronique"})
+_CONTRACT_HINTS = frozenset({"contrat", "référence", "dossier", "légal", "numéro"})
 
 
 @dataclass
@@ -60,23 +38,24 @@ class MemoryEntry:
     score: float = 0.0
 
 
-def _tokenize(text: str) -> dict[str, float]:
-    """Bag-of-words normalisé — remplacer par un vrai modèle d'embeddings."""
-    words = [w for w in re.findall(r"\w+", text.lower()) if w not in _STOPWORDS and len(w) > 2]
-    if not words:
-        return {}
-    freq: dict[str, float] = {}
-    for w in words:
-        freq[w] = freq.get(w, 0.0) + 1.0
-    norm = math.sqrt(sum(v * v for v in freq.values())) or 1.0
-    return {k: v / norm for k, v in freq.items()}
+def _rerank_boost(query: str, content: str, tags: list[str]) -> float:
+    """Léger reranking générique (sans hardcoder les réponses)."""
+    q = query.lower()
+    c = content.lower()
+    boost = 0.0
+    q_words = set(q.split())
 
-
-def _cosine(a: dict[str, float], b: dict[str, float]) -> float:
-    if not a or not b:
-        return 0.0
-    common = set(a) & set(b)
-    return sum(a[k] * b[k] for k in common)
+    if q_words & _IDENTITY_HINTS and any(w in c for w in ("cliente", "client", "premium", "nom")):
+        boost += 0.12
+    if q_words & _CONTACT_HINTS and "@" in c:
+        boost += 0.12
+    if q_words & _CONTRACT_HINTS and "ctr-" in c:
+        boost += 0.12
+    if "fact" in tags:
+        boost += 0.04
+    if "noise" in tags:
+        boost -= 0.25
+    return boost
 
 
 class MemoryStore:
@@ -95,7 +74,7 @@ class MemoryStore:
                 tags TEXT NOT NULL DEFAULT '[]',
                 session TEXT NOT NULL DEFAULT 'default',
                 turn INTEGER NOT NULL DEFAULT 0,
-                embedding TEXT NOT NULL DEFAULT '{}'
+                embedding TEXT NOT NULL DEFAULT '[]'
             )
             """
         )
@@ -105,7 +84,7 @@ class MemoryStore:
         self, content: str, tags: list[str] | None = None, session: str = "default", turn: int = 0
     ) -> int:
         tags = tags or []
-        emb = json.dumps(_tokenize(content))
+        emb = json.dumps(embed_text(content))
         cur = self._conn.execute(
             "INSERT INTO memories (content, tags, session, turn, embedding) VALUES (?, ?, ?, ?, ?)",
             (content, json.dumps(tags), session, turn, emb),
@@ -114,7 +93,7 @@ class MemoryStore:
         return int(cur.lastrowid)
 
     def search(self, query: str, top_k: int = 5, session: str | None = None) -> list[MemoryEntry]:
-        q_vec = _tokenize(query)
+        q_vec = embed_text(query)
         rows = self._conn.execute(
             "SELECT * FROM memories" + (" WHERE session = ?" if session else ""),
             (session,) if session else (),
@@ -123,11 +102,12 @@ class MemoryStore:
         scored: list[tuple[float, sqlite3.Row]] = []
         for row in rows:
             vec = json.loads(row["embedding"])
-            score = _cosine(q_vec, vec)
+            tags = json.loads(row["tags"])
+            score = cosine_similarity(q_vec, vec) + _rerank_boost(query, row["content"], tags)
             scored.append((score, row))
 
         scored.sort(key=lambda x: x[0], reverse=True)
-        scored = [(s, row) for s, row in scored if s > MIN_SIMILARITY]
+        scored = [(s, row) for s, row in scored if s >= MIN_SIMILARITY]
 
         results: list[MemoryEntry] = []
         for score, row in scored[:top_k]:

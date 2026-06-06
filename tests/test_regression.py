@@ -134,7 +134,9 @@ def test_context_growth_plateau():
             session="plateau",
             turn=turn["turn"],
         )
-        per_turn.append(per_turn_context_tokens(tools, "plateau", turn["content"]))
+        per_turn.append(
+            per_turn_context_tokens(tools, "plateau", turn["content"], turn=turn["turn"])
+        )
 
     factor = context_growth_factor(per_turn)
     assert factor <= 1.15, f"Contexte encore croissant : facteur {factor:.2f} (max 1.15)"

@@ -9,10 +9,13 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
+from memory_mcp.live import publish_live
 from memory_mcp.tools import MemoryTools
 
 app = Server("memory-mcp")
 tools_handler = MemoryTools()
+
+publish_live(status="online", detail="server_started")
 
 
 @app.list_tools()
@@ -59,7 +62,7 @@ async def list_tools() -> list[Tool]:
                     "max_chars": {
                         "type": "integer",
                         "description": "Taille max du résumé",
-                        "default": 500,
+                        "default": 200,
                     },
                 },
             },
@@ -90,7 +93,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     elif name == "memory_summarize":
         result = tools_handler.memory_summarize(
             session=arguments.get("session", "default"),
-            max_chars=arguments.get("max_chars", 500),
+            max_chars=arguments.get("max_chars", 200),
         )
     elif name == "memory_stats":
         result = tools_handler.memory_stats()

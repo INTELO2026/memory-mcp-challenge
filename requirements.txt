@@ -1,5 +1,11 @@
 mcp>=1.0.0
 tiktoken>=0.7.0
+sentence-transformers>=3.0.0
+
+# Kimi (optionnel)
+# pip install -e ".[kimi]"
+# openai>=1.40.0
+# python-dotenv>=1.0.0
 
 # Dev (CI installe aussi via pyproject)
 pytest>=8.0.0
