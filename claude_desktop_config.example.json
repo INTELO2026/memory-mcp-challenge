@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "membridge": {
+      "command": "C:\\Users\\HP\\Desktop\\Projet\\SEIC 2026\\hck cursor\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "memory_mcp.server"],
+      "env": {
+        "PYTHONPATH": "C:\\Users\\HP\\Desktop\\Projet\\SEIC 2026\\hck cursor\\src",
+        "MEMBRIDGE_PERSIST": "1",
+        "HF_HUB_DISABLE_SYMLINKS_WARNING": "1"
+      }
+    }
+  }
+}

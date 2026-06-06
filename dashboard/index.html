@@ -3,79 +3,1296 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memory MCP — Benchmark Dashboard</title>
+  <title>MemBridge — Intelligence Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    :root { --red: #ef4444; --green: #22c55e; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; }
+    :root {
+      --swiss-bg: #FFFFFF;
+      --swiss-fg: #000000;
+      --swiss-muted: #F2F2F2;
+      --swiss-accent: #FF3000;
+      --swiss-border: #000000;
+      --font: 'Inter', Helvetica, Arial, sans-serif;
+      --border-w: 2px;
+      --border-thick: 4px;
+      --transition: 150ms ease-linear;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
-    h1 { margin-bottom: 0.5rem; }
-    .subtitle { color: #94a3b8; margin-bottom: 2rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; }
-    .card h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 1rem; }
-    .metric { font-size: 2.5rem; font-weight: 700; }
-    .metric.naive { color: var(--red); }
-    .metric.memory { color: var(--green); }
-    .savings { margin-top: 2rem; text-align: center; font-size: 1.5rem; }
-    .savings span { color: var(--green); font-weight: 700; }
-    canvas { width: 100%; height: 200px; margin-top: 1rem; }
-    .quality { margin-top: 1.5rem; }
-    .bar { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
-    .bar-fill { height: 100%; background: var(--green); transition: width 0.5s; }
-    pre { background: #0f172a; padding: 1rem; border-radius: 8px; overflow: auto; font-size: 0.8rem; margin-top: 1rem; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--swiss-bg);
+      color: var(--swiss-fg);
+      min-height: 100vh;
+      overflow-x: hidden;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Textures ── */
+    .swiss-noise {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.015;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .swiss-grid-pattern {
+      background-image:
+        linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    .swiss-dots {
+      background-image: radial-gradient(circle, rgba(0,0,0,0.04) 1px, transparent 1px);
+      background-size: 16px 16px;
+    }
+
+    .swiss-diagonal {
+      background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 9px,
+        rgba(0,0,0,0.02) 9px,
+        rgba(0,0,0,0.02) 10px
+      );
+    }
+
+    /* ── Layout ── */
+    .app {
+      position: relative;
+      z-index: 1;
+      max-width: 1440px;
+      margin: 0 auto;
+      border-left: var(--border-w) solid var(--swiss-border);
+      border-right: var(--border-w) solid var(--swiss-border);
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: stretch;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      border-bottom: var(--border-thick) solid var(--swiss-border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: stretch;
+      flex: 1;
+      min-width: 280px;
+    }
+
+    .logo {
+      width: 72px;
+      min-height: 72px;
+      background: var(--swiss-fg);
+      color: var(--swiss-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.75rem;
+      border-right: var(--border-w) solid var(--swiss-border);
+      flex-shrink: 0;
+    }
+
+    .brand-text {
+      padding: 1rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .brand h1 {
+      font-size: clamp(1.25rem, 3vw, 1.75rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      text-transform: uppercase;
+      line-height: 1;
+    }
+
+    .brand p {
+      font-size: 0.6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--swiss-fg);
+      opacity: 0.55;
+      margin-top: 0.35rem;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: stretch;
+      border-left: var(--border-w) solid var(--swiss-border);
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0 1.25rem;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      border-right: var(--border-w) solid var(--swiss-border);
+      background: var(--swiss-muted);
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--swiss-accent);
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .live-dot { animation: pulse 2s ease-in-out infinite; }
+
+    .btn {
+      font-family: var(--font);
+      font-weight: 700;
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      padding: 0 1.5rem;
+      min-height: 72px;
+      border: none;
+      border-right: var(--border-w) solid var(--swiss-border);
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+    }
+
+    .btn:last-child { border-right: none; }
+
+    .btn:focus-visible {
+      outline: 2px solid var(--swiss-accent);
+      outline-offset: -2px;
+    }
+
+    .btn-primary {
+      background: var(--swiss-fg);
+      color: var(--swiss-bg);
+    }
+
+    .btn-primary:hover {
+      background: var(--swiss-accent);
+      color: var(--swiss-bg);
+    }
+
+    .btn-ghost {
+      background: var(--swiss-bg);
+      color: var(--swiss-fg);
+    }
+
+    .btn-ghost:hover {
+      background: var(--swiss-fg);
+      color: var(--swiss-bg);
+    }
+
+    /* ── Section label ── */
+    .section-label {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .section-num {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--swiss-accent);
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      border-bottom: var(--border-thick) solid var(--swiss-border);
+    }
+
+    @media (max-width: 768px) {
+      .hero { grid-template-columns: 1fr; }
+    }
+
+    .hero-main {
+      padding: clamp(2rem, 5vw, 4rem) clamp(1.5rem, 4vw, 3rem);
+      border-right: var(--border-w) solid var(--swiss-border);
+    }
+
+    @media (max-width: 768px) {
+      .hero-main { border-right: none; border-bottom: var(--border-w) solid var(--swiss-border); }
+    }
+
+    .hero-label {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--swiss-fg);
+      opacity: 0.55;
+      margin-bottom: 1rem;
+    }
+
+    .hero-value {
+      font-size: clamp(4rem, 12vw, 9rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 0.9;
+      text-transform: uppercase;
+    }
+
+    .hero-sub {
+      margin-top: 1.5rem;
+      font-size: 0.875rem;
+      font-weight: 400;
+      max-width: 36ch;
+    }
+
+    .hero-sub strong {
+      font-weight: 700;
+    }
+
+    .hero-side {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: var(--swiss-muted);
+      min-width: 200px;
+    }
+
+    .ring-container {
+      position: relative;
+      width: 160px;
+      height: 160px;
+    }
+
+    .ring-container svg {
+      transform: rotate(-90deg);
+      width: 100%;
+      height: 100%;
+    }
+
+    .ring-bg { fill: none; stroke: rgba(0,0,0,0.08); stroke-width: 6; }
+    .ring-fill {
+      fill: none;
+      stroke: var(--swiss-accent);
+      stroke-width: 6;
+      transition: stroke-dashoffset 1s ease-out;
+    }
+
+    .ring-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ring-label span:first-child {
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+
+    .ring-label span:last-child {
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      opacity: 0.55;
+    }
+
+    .victory-badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-left: 0.5rem;
+      border: var(--border-w) solid var(--swiss-border);
+    }
+
+    .victory-yes { background: var(--swiss-fg); color: var(--swiss-bg); }
+    .victory-no { background: var(--swiss-bg); color: var(--swiss-fg); }
+
+    /* ── Metrics ── */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-bottom: var(--border-thick) solid var(--swiss-border);
+    }
+
+    @media (max-width: 1024px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .metrics { grid-template-columns: 1fr; } }
+
+    .metric-card {
+      padding: 1.5rem;
+      border-right: var(--border-w) solid var(--swiss-border);
+      border-bottom: var(--border-w) solid var(--swiss-border);
+      background: var(--swiss-bg);
+      transition: background var(--transition), color var(--transition);
+      cursor: default;
+    }
+
+    .metric-card:nth-child(4n) { border-right: none; }
+    @media (max-width: 1024px) {
+      .metric-card:nth-child(4n) { border-right: var(--border-w) solid var(--swiss-border); }
+      .metric-card:nth-child(2n) { border-right: none; }
+    }
+    @media (max-width: 480px) {
+      .metric-card { border-right: none !important; }
+    }
+
+    .metric-card:hover {
+      background: var(--swiss-fg);
+      color: var(--swiss-bg);
+    }
+
+    .metric-card:hover .metric-label,
+    .metric-card:hover .metric-delta { opacity: 0.65; }
+
+    .metric-card.naive:hover { background: var(--swiss-accent); }
+
+    .metric-index {
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--swiss-accent);
+      margin-bottom: 0.75rem;
+    }
+
+    .metric-card:hover .metric-index { color: var(--swiss-bg); opacity: 0.7; }
+    .metric-card.naive:hover .metric-index { color: var(--swiss-bg); }
+
+    .metric-label {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      opacity: 0.55;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-card .value {
+      font-size: clamp(1.5rem, 3vw, 2.25rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+
+    .metric-card.naive .value { color: var(--swiss-accent); }
+    .metric-card:hover.naive .value,
+    .metric-card:hover .value { color: inherit; }
+
+    .metric-delta {
+      font-size: 0.75rem;
+      font-weight: 400;
+      margin-top: 0.5rem;
+      opacity: 0.55;
+    }
+
+    /* ── Panels ── */
+    .panels {
+      display: grid;
+      grid-template-columns: 7fr 5fr;
+      border-bottom: var(--border-thick) solid var(--swiss-border);
+    }
+
+    @media (max-width: 1024px) {
+      .panels { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      padding: clamp(1.5rem, 3vw, 2rem);
+      border-right: var(--border-w) solid var(--swiss-border);
+    }
+
+    .panel:last-child { border-right: none; }
+
+    @media (max-width: 1024px) {
+      .panel { border-right: none; border-bottom: var(--border-w) solid var(--swiss-border); }
+      .panel:last-child { border-bottom: none; }
+    }
+
+    .panel-muted {
+      background: var(--swiss-muted);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .panel-badge {
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      padding: 0.35rem 0.65rem;
+      border: var(--border-w) solid var(--swiss-border);
+      background: var(--swiss-bg);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .panel-muted .panel-badge {
+      background: var(--swiss-muted);
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 300px;
+      border: var(--border-w) solid var(--swiss-border);
+      background: var(--swiss-bg);
+      padding: 0.5rem;
+    }
+
+    .chart-wrap-sm { height: 220px; }
+
+    /* ── Stats ── */
+    .stat-rows { display: flex; flex-direction: column; }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.875rem 0;
+      border-bottom: var(--border-w) solid var(--swiss-border);
+      gap: 1rem;
+    }
+
+    .stat-row:last-child { border-bottom: none; }
+
+    .stat-row label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      opacity: 0.65;
+    }
+
+    .stat-row .val {
+      font-weight: 900;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+      text-align: right;
+    }
+
+    /* ── Memory feed ── */
+    .memory-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      max-height: 340px;
+      overflow-y: auto;
+      border: var(--border-w) solid var(--swiss-border);
+    }
+
+    .memory-feed::-webkit-scrollbar { width: 4px; }
+    .memory-feed::-webkit-scrollbar-track { background: var(--swiss-muted); }
+    .memory-feed::-webkit-scrollbar-thumb { background: var(--swiss-fg); }
+
+    .mem-card {
+      padding: 1rem 1.25rem;
+      border-bottom: var(--border-w) solid var(--swiss-border);
+      background: var(--swiss-bg);
+      transition: background var(--transition), color var(--transition);
+    }
+
+    .mem-card:last-child { border-bottom: none; }
+
+    .mem-card:hover {
+      background: var(--swiss-fg);
+      color: var(--swiss-bg);
+    }
+
+    .mem-card:hover .mem-content { opacity: 0.85; }
+    .mem-card:hover .tag { background: var(--swiss-bg); color: var(--swiss-fg); }
+
+    .mem-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .ret-badge {
+      font-size: 0.625rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border: 1px solid var(--swiss-border);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .ret-high { background: var(--swiss-fg); color: var(--swiss-bg); border-color: var(--swiss-fg); }
+    .ret-mid { background: var(--swiss-muted); color: var(--swiss-fg); }
+    .ret-low { background: var(--swiss-accent); color: var(--swiss-bg); border-color: var(--swiss-accent); }
+
+    .mem-card:hover .ret-high { background: var(--swiss-bg); color: var(--swiss-fg); border-color: var(--swiss-bg); }
+    .mem-card:hover .ret-mid { background: rgba(255,255,255,0.2); color: var(--swiss-bg); border-color: var(--swiss-bg); }
+    .mem-card:hover .ret-low { background: var(--swiss-bg); color: var(--swiss-accent); border-color: var(--swiss-bg); }
+
+    .tag {
+      font-size: 0.625rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border: 1px solid var(--swiss-border);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      background: var(--swiss-muted);
+    }
+
+    .mem-content {
+      font-size: 0.875rem;
+      line-height: 1.55;
+      font-weight: 400;
+    }
+
+    .ret-bar-wrap {
+      margin-top: 0.75rem;
+      height: 3px;
+      background: rgba(0,0,0,0.08);
+    }
+
+    .mem-card:hover .ret-bar-wrap { background: rgba(255,255,255,0.2); }
+
+    .ret-bar {
+      height: 100%;
+      transition: width 0.6s ease-out;
+    }
+
+    /* ── Graph canvas ── */
+    #graph-canvas {
+      width: 100%;
+      height: 320px;
+      border: var(--border-w) solid var(--swiss-border);
+      background: var(--swiss-bg);
+      display: block;
+    }
+
+    .bottom-panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-bottom: var(--border-thick) solid var(--swiss-border);
+    }
+
+    @media (max-width: 768px) {
+      .bottom-panels { grid-template-columns: 1fr; }
+    }
+
+    .bottom-panels .panel {
+      border-bottom: none;
+    }
+
+    @media (max-width: 768px) {
+      .bottom-panels .panel:first-child {
+        border-bottom: var(--border-w) solid var(--swiss-border);
+      }
+    }
+
+    .full-panel {
+      border-bottom: var(--border-thick) solid var(--swiss-border);
+    }
+
+    .empty-state {
+      padding: 2.5rem 1.5rem;
+      text-align: left;
+      font-size: 0.875rem;
+      font-weight: 500;
+      opacity: 0.55;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* ── Quality grid ── */
+    .quality-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0;
+      border: var(--border-w) solid var(--swiss-border);
+    }
+
+    .trap-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      font-size: 0.8125rem;
+      border-bottom: var(--border-w) solid var(--swiss-border);
+      border-right: var(--border-w) solid var(--swiss-border);
+      background: var(--swiss-bg);
+      transition: background var(--transition), color var(--transition);
+    }
+
+    .trap-item:hover {
+      background: var(--swiss-fg);
+      color: var(--swiss-bg);
+    }
+
+    .trap-item.pass:hover { background: var(--swiss-fg); }
+    .trap-item.fail:hover { background: var(--swiss-accent); }
+
+    .trap-mark {
+      font-weight: 900;
+      font-size: 0.875rem;
+      flex-shrink: 0;
+      width: 1.25rem;
+    }
+
+    .trap-item.pass .trap-mark { color: var(--swiss-fg); }
+    .trap-item.fail .trap-mark { color: var(--swiss-accent); }
+    .trap-item:hover .trap-mark { color: inherit; }
+
+    /* ── Footer ── */
+    footer {
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      opacity: 0.45;
+    }
+
+    footer span { font-weight: 900; opacity: 1; }
+
+    /* ── Geometric accent (hero side decoration) ── */
+    .geo-accent {
+      position: absolute;
+      pointer-events: none;
+    }
+
+    .geo-accent--circle {
+      width: 48px;
+      height: 48px;
+      border: var(--border-w) solid var(--swiss-fg);
+      border-radius: 50%;
+      top: 1rem;
+      right: 1rem;
+    }
+
+    .geo-accent--square {
+      width: 24px;
+      height: 24px;
+      background: var(--swiss-accent);
+      bottom: 1rem;
+      left: 1rem;
+    }
   </style>
 </head>
 <body>
-  <h1>Memory MCP Benchmark</h1>
-  <p class="subtitle">Hackathon INTELO2026 — Naïf vs Mémoire</p>
+  <div class="swiss-noise"></div>
 
-  <div class="grid">
-    <div class="card">
-      <h2>Mode naïf (tout l'historique)</h2>
-      <div class="metric naive" id="naive-tokens">—</div>
-      <p>tokens cumulés</p>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="logo">M</div>
+        <div class="brand-text">
+          <h1>MemBridge</h1>
+          <p>INTELO 2026 · Mémoire MCP · Ebbinghaus · Benchmark live</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="live-badge">
+          <span class="live-dot"></span>
+          <span id="live-status">Live</span>
+        </div>
+        <button class="btn btn-ghost" onclick="refresh()">↻ Actualiser</button>
+        <button class="btn btn-primary" onclick="resetDemo()">Reset démo</button>
+      </div>
+    </header>
+
+    <section class="hero swiss-grid-pattern">
+      <div class="hero-main">
+        <div class="section-label">
+          <span class="section-num">01.</span>
+          <span class="section-title">Économie</span>
+        </div>
+        <div class="hero-label" id="hero-label-text">Économie tokens cumulée</div>
+        <div class="hero-value" id="hero-savings">—</div>
+        <p class="hero-sub">
+          <strong id="tokens-saved">—</strong> tokens économisés ·
+          coût évité <strong id="cost-saved">—</strong>
+        </p>
+      </div>
+      <div class="hero-side swiss-dots" style="position:relative">
+        <div class="geo-accent geo-accent--circle"></div>
+        <div class="geo-accent geo-accent--square"></div>
+        <div class="ring-container">
+          <svg viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="52" />
+            <circle class="ring-fill" id="savings-ring" cx="60" cy="60" r="52"
+              stroke-dasharray="327" stroke-dashoffset="327" />
+          </svg>
+          <div class="ring-label">
+            <span id="ring-pct">0</span>
+            <span>% saved</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="metrics">
+      <div class="metric-card naive">
+        <div class="metric-index">A</div>
+        <div class="metric-label">Mode naïf</div>
+        <div class="value" id="naive-tokens">—</div>
+        <div class="metric-delta">Historique complet à chaque tour</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-index">B</div>
+        <div class="metric-label">MemBridge</div>
+        <div class="value" id="memory-tokens">—</div>
+        <div class="metric-delta">Contexte O(1) constant</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-index">C</div>
+        <div class="metric-label">Réduction</div>
+        <div class="value" id="savings-pct">—</div>
+        <div class="metric-delta">Objectif jury ≥ 70%</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-index">D</div>
+        <div class="metric-label">Coût évité</div>
+        <div class="value" id="cost-metric">—</div>
+        <div class="metric-delta">Claude Sonnet input</div>
+      </div>
     </div>
-    <div class="card">
-      <h2>Mode mémoire MCP</h2>
-      <div class="metric memory" id="memory-tokens">—</div>
-      <p>tokens cumulés</p>
+
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="section-label" style="margin-bottom:0">
+            <span class="section-num">02.</span>
+            <span class="section-title">Courbe tokens — Naïf vs MemBridge</span>
+          </div>
+          <span class="panel-badge">50 tours</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="token-chart"></canvas>
+        </div>
+      </div>
+      <div class="panel panel-muted swiss-dots">
+        <div class="panel-header">
+          <div class="section-label" style="margin-bottom:0">
+            <span class="section-num">03.</span>
+            <span class="section-title">Santé mémoire</span>
+          </div>
+          <span class="panel-badge" id="last-update">—</span>
+        </div>
+        <div class="stat-rows">
+          <div class="stat-row">
+            <label>Entrées actives</label>
+            <span class="val" id="active-entries">—</span>
+          </div>
+          <div class="stat-row">
+            <label>Archivées (Ebbinghaus)</label>
+            <span class="val" id="archived-entries">—</span>
+          </div>
+          <div class="stat-row">
+            <label>Total stocké</label>
+            <span class="val" id="total-entries">—</span>
+          </div>
+          <div class="stat-row">
+            <label>Latence recherche</label>
+            <span class="val" id="avg-retrieval">— ms</span>
+          </div>
+          <div class="stat-row">
+            <label>Appels store / search</label>
+            <span class="val" id="api-calls">—</span>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
 
-  <div class="savings">
-    Économie : <span id="savings">—</span>
-  </div>
+    <div class="panel full-panel swiss-diagonal">
+      <div class="panel-header">
+        <div class="section-label" style="margin-bottom:0">
+          <span class="section-num">04.</span>
+          <span class="section-title">Courbes Ebbinghaus — R(t) sur 72h</span>
+        </div>
+        <span class="panel-badge">R = e^(-t/S)</span>
+      </div>
+      <div class="chart-wrap chart-wrap-sm">
+        <canvas id="retention-chart"></canvas>
+      </div>
+    </div>
 
-  <div class="card quality">
-    <h2>Qualité — questions pièges</h2>
-    <p><span id="quality-score">—</span> / <span id="quality-total">—</span> réussies</p>
-    <div class="bar"><div class="bar-fill" id="quality-bar" style="width:0%"></div></div>
-  </div>
+    <div class="panel full-panel">
+      <div class="panel-header">
+        <div class="section-label" style="margin-bottom:0">
+          <span class="section-num">05.</span>
+          <span class="section-title">Questions pièges — Qualité</span>
+        </div>
+        <span class="panel-badge" id="quality-score">—/—</span>
+      </div>
+      <div class="quality-grid" id="quality-list"></div>
+    </div>
 
-  <div class="card">
-    <h2>Rapport JSON</h2>
-    <pre id="report">Chargez benchmark/results/report.json ou lancez python -m benchmark.harness > report.json</pre>
+    <div class="bottom-panels">
+      <div class="panel swiss-grid-pattern">
+        <div class="panel-header">
+          <div class="section-label" style="margin-bottom:0">
+            <span class="section-num">06.</span>
+            <span class="section-title">Graphe sémantique · Rétention</span>
+          </div>
+          <span class="panel-badge">sim &gt; 0.7</span>
+        </div>
+        <canvas id="graph-canvas"></canvas>
+      </div>
+      <div class="panel panel-muted">
+        <div class="panel-header">
+          <div class="section-label" style="margin-bottom:0">
+            <span class="section-num">07.</span>
+            <span class="section-title">Flux mémoire</span>
+          </div>
+          <span class="panel-badge" id="mem-count">0</span>
+        </div>
+        <div class="memory-feed" id="mem-list">
+          <div class="empty-state">Chargement des souvenirs…</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <span>MemBridge</span>
+      <span>memory_mcp.server · refresh 5s</span>
+      <span>Hackathon LBS Lomé</span>
+    </footer>
   </div>
 
   <script>
-    // TODO équipe : brancher sur les résultats live du benchmark
-    async function loadReport() {
+    let tokenChart = null;
+    let retentionChart = null;
+    let benchmarkData = null;
+    const CIRC = 327;
+
+    const SWISS = {
+      fg: '#000000',
+      bg: '#FFFFFF',
+      muted: '#F2F2F2',
+      accent: '#FF3000',
+      grid: 'rgba(0,0,0,0.06)',
+      dim: 'rgba(0,0,0,0.45)',
+    };
+
+    Chart.defaults.font.family = "'Inter', Helvetica, sans-serif";
+    Chart.defaults.color = SWISS.dim;
+
+    function retClass(score) {
+      if (score > 0.7) return 'ret-high';
+      if (score > 0.3) return 'ret-mid';
+      return 'ret-low';
+    }
+
+    function retColor(score) {
+      if (score > 0.7) return SWISS.fg;
+      if (score > 0.3) return 'rgba(0,0,0,0.35)';
+      return SWISS.accent;
+    }
+
+    async function fetchJSON(url) {
+      const res = await fetch(url);
+      return res.json();
+    }
+
+    function setRing(pct) {
+      const offset = CIRC - (Math.min(pct, 100) / 100) * CIRC;
+      document.getElementById('savings-ring').style.strokeDashoffset = offset;
+      document.getElementById('ring-pct').textContent = Math.round(pct);
+    }
+
+    function updateTokenChart(bench) {
+      if (!bench?.naive?.tokens_per_turn) return;
+      const turns = bench.naive.tokens_per_turn.map((_, i) => i + 1);
+      const naiveCumul = [];
+      let sum = 0;
+      bench.naive.tokens_per_turn.forEach(t => { sum += t; naiveCumul.push(sum); });
+      const memPerTurn = bench.memory?.per_turn || [];
+
+      const ctx = document.getElementById('token-chart').getContext('2d');
+
+      if (tokenChart) tokenChart.destroy();
+      tokenChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: turns,
+          datasets: [
+            {
+              label: 'Naïf (cumul)',
+              data: naiveCumul,
+              borderColor: SWISS.accent,
+              backgroundColor: 'rgba(255,48,0,0.06)',
+              fill: true,
+              tension: 0,
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              pointHoverBackgroundColor: SWISS.accent,
+            },
+            {
+              label: 'MemBridge / tour',
+              data: memPerTurn,
+              borderColor: SWISS.fg,
+              backgroundColor: 'rgba(0,0,0,0.04)',
+              fill: true,
+              tension: 0,
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              pointHoverBackgroundColor: SWISS.fg,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'index' },
+          plugins: {
+            legend: {
+              labels: {
+                color: SWISS.fg,
+                usePointStyle: true,
+                pointStyle: 'rect',
+                padding: 20,
+                font: { weight: '700', size: 11, family: "'Inter'" },
+              }
+            },
+            tooltip: {
+              backgroundColor: SWISS.fg,
+              titleColor: SWISS.bg,
+              bodyColor: SWISS.bg,
+              borderColor: SWISS.fg,
+              borderWidth: 0,
+              titleFont: { family: "'Inter'", weight: '700' },
+              bodyFont: { family: "'Inter'" },
+              cornerRadius: 0,
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'TOUR',
+                color: SWISS.dim,
+                font: { weight: '700', size: 10, family: "'Inter'" },
+              },
+              ticks: { color: SWISS.dim, maxTicksLimit: 12, font: { size: 10 } },
+              grid: { color: SWISS.grid },
+              border: { color: SWISS.fg, width: 1 },
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'TOKENS',
+                color: SWISS.dim,
+                font: { weight: '700', size: 10, family: "'Inter'" },
+              },
+              ticks: { color: SWISS.dim, font: { family: "'Inter'", weight: '500' } },
+              grid: { color: SWISS.grid },
+              border: { color: SWISS.fg, width: 1 },
+            }
+          }
+        }
+      });
+    }
+
+    function drawGraph(graph) {
+      const canvas = document.getElementById('graph-canvas');
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.width = canvas.offsetWidth * dpr;
+      const h = canvas.height = canvas.offsetHeight * dpr;
+      ctx.scale(dpr, dpr);
+      const cw = canvas.offsetWidth, ch = canvas.offsetHeight;
+      ctx.clearRect(0, 0, cw, ch);
+
+      const nodes = graph.nodes || [];
+      const links = graph.links || [];
+
+      if (!nodes.length) {
+        ctx.fillStyle = SWISS.dim;
+        ctx.font = '700 11px Inter, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('AUCUN SOUVENIR ACTIF — LANCEZ UNE DÉMO CLAUDE', 24, ch / 2);
+        return;
+      }
+
+      const cx = cw / 2, cy = ch / 2;
+      const radius = Math.min(cw, ch) * 0.32;
+      const positions = {};
+
+      nodes.forEach((n, i) => {
+        const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+        positions[n.id] = {
+          x: cx + radius * Math.cos(angle),
+          y: cy + radius * Math.sin(angle),
+          n
+        };
+      });
+
+      links.forEach(l => {
+        const a = positions[l.source], b = positions[l.target];
+        if (!a || !b) return;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = `rgba(0,0,0,${l.weight * 0.25})`;
+        ctx.lineWidth = Math.max(1, l.weight * 2);
+        ctx.stroke();
+      });
+
+      nodes.forEach(n => {
+        const p = positions[n.id];
+        const r = 5 + n.importance * 12;
+        const color = n.color === 'green' ? SWISS.fg
+          : n.color === 'yellow' ? 'rgba(0,0,0,0.35)'
+          : SWISS.accent;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, 2 * Math.PI);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = SWISS.fg;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    }
+
+    function updateRetentionChart(data) {
+      const canvas = document.getElementById('retention-chart');
+      if (!canvas) return;
+      const curves = data.curves || [];
+      const palette = [
+        SWISS.fg,
+        SWISS.accent,
+        'rgba(0,0,0,0.55)',
+        'rgba(0,0,0,0.30)',
+        'rgba(255,48,0,0.55)',
+        'rgba(0,0,0,0.70)',
+        'rgba(255,48,0,0.35)',
+        'rgba(0,0,0,0.40)',
+      ];
+      const datasets = curves.map((c, i) => ({
+        label: (c.label || `M${c.id}`).slice(0, 28),
+        data: (c.points || []).map(p => ({ x: p.hours, y: p.retention * 100 })),
+        borderColor: palette[i % palette.length],
+        backgroundColor: 'transparent',
+        tension: 0,
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        borderWidth: 2,
+        fill: false
+      }));
+
+      if (retentionChart) retentionChart.destroy();
+      retentionChart = new Chart(canvas, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          parsing: false,
+          plugins: {
+            legend: {
+              labels: {
+                color: SWISS.fg,
+                font: { family: 'Inter', size: 10, weight: '700' },
+                boxWidth: 12,
+                pointStyle: 'rect',
+              }
+            },
+            tooltip: {
+              backgroundColor: SWISS.fg,
+              titleColor: SWISS.bg,
+              bodyColor: SWISS.bg,
+              cornerRadius: 0,
+            }
+          },
+          scales: {
+            x: {
+              type: 'linear',
+              title: {
+                display: true,
+                text: 'HEURES',
+                color: SWISS.dim,
+                font: { weight: '700', size: 10 },
+              },
+              ticks: { color: SWISS.dim, font: { size: 10 } },
+              grid: { color: SWISS.grid },
+              border: { color: SWISS.fg, width: 1 },
+            },
+            y: {
+              min: 0,
+              max: 100,
+              title: {
+                display: true,
+                text: 'RÉTENTION %',
+                color: SWISS.dim,
+                font: { weight: '700', size: 10 },
+              },
+              ticks: { color: SWISS.dim, font: { size: 10 } },
+              grid: { color: SWISS.grid },
+              border: { color: SWISS.fg, width: 1 },
+            }
+          }
+        }
+      });
+    }
+
+    async function refresh() {
       try {
-        const res = await fetch('../benchmark/results/report.json');
-        const data = await res.json();
-        document.getElementById('naive-tokens').textContent = data.naive.total_tokens.toLocaleString();
-        document.getElementById('memory-tokens').textContent = data.memory.total_tokens.toLocaleString();
-        document.getElementById('savings').textContent = `-${data.savings_pct}% tokens`;
-        document.getElementById('quality-score').textContent = data.quality.passed;
-        document.getElementById('quality-total').textContent = data.quality.total;
-        document.getElementById('quality-bar').style.width = data.quality.score_pct + '%';
-        document.getElementById('report').textContent = JSON.stringify(data, null, 2);
-      } catch {
-        document.getElementById('report').textContent =
-          'Aucun rapport trouvé. Exécutez : python -m benchmark.harness';
+        document.getElementById('live-status').textContent = 'Sync…';
+        const [stats, memories, graph, retention] = await Promise.all([
+          fetchJSON('/stats'),
+          fetchJSON('/memories'),
+          fetchJSON('/graph'),
+          fetchJSON('/retention')
+        ]);
+
+        document.getElementById('active-entries').textContent = stats.active_entries ?? 0;
+        document.getElementById('archived-entries').textContent = stats.archived_entries ?? 0;
+        document.getElementById('total-entries').textContent = stats.total_entries ?? 0;
+        document.getElementById('avg-retrieval').textContent = (stats.avg_retrieval_time_ms ?? 0).toFixed(1);
+        document.getElementById('api-calls').textContent =
+          `${stats.store_calls ?? 0} / ${stats.search_calls ?? 0}`;
+        document.getElementById('cost-metric').textContent =
+          ((stats.cost_saved_euros ?? 0).toFixed(3)) + ' €';
+        document.getElementById('cost-saved').textContent =
+          ((stats.cost_saved_euros ?? 0).toFixed(4)) + ' €';
+        document.getElementById('tokens-saved').textContent =
+          (stats.tokens_saved ?? 0).toLocaleString('fr-FR');
+
+        if (!benchmarkData) {
+          try { benchmarkData = await fetchJSON('/benchmark'); } catch {}
+        }
+
+        let savingsPct = stats.savings_percentage ?? 0;
+        if (benchmarkData) {
+          document.getElementById('naive-tokens').textContent =
+            benchmarkData.naive.total_tokens.toLocaleString('fr-FR');
+          document.getElementById('memory-tokens').textContent =
+            benchmarkData.memory.total_tokens.toLocaleString('fr-FR');
+          savingsPct = benchmarkData.savings_pct;
+          document.getElementById('savings-pct').textContent = savingsPct + '%';
+          updateTokenChart(benchmarkData);
+
+          const q = benchmarkData.quality;
+          if (q) {
+            document.getElementById('quality-score').textContent =
+              `${q.passed}/${q.total} (${q.score_pct}%)`;
+            document.getElementById('quality-list').innerHTML = (q.details || []).map(d =>
+              `<div class="trap-item ${d.passed ? 'pass' : 'fail'}">
+                <span class="trap-mark">${d.passed ? '✓' : '✗'}</span>
+                <span>${d.question}</span>
+              </div>`
+            ).join('');
+          }
+
+          const victory = benchmarkData.victory;
+          const heroLabel = document.getElementById('hero-label-text');
+          if (victory !== undefined && heroLabel) {
+            heroLabel.innerHTML = `Économie tokens cumulée
+              <span class="victory-badge ${victory ? 'victory-yes' : 'victory-no'}">
+                ${victory ? '✓ Critère jury' : '○ En cours'}
+              </span>`;
+          }
+        }
+
+        document.getElementById('hero-savings').textContent = savingsPct + '%';
+        document.getElementById('savings-pct').textContent = savingsPct + '%';
+        setRing(savingsPct);
+
+        const mems = memories.memories || [];
+        document.getElementById('mem-count').textContent = mems.length;
+        const list = document.getElementById('mem-list');
+
+        list.innerHTML = mems.length ? mems.map(m => `
+          <div class="mem-card">
+            <div class="mem-meta">
+              <span class="ret-badge ${retClass(m.retention_score)}">
+                R ${(m.retention_score || 0).toFixed(2)}
+              </span>
+              <span class="ret-badge" style="background:var(--swiss-muted)">
+                S ${(m.stability || 0).toFixed(1)}
+              </span>
+              ${(m.tags || []).map(t => `<span class="tag">${t}</span>`).join('')}
+            </div>
+            <div class="mem-content">${m.content}</div>
+            <div class="ret-bar-wrap">
+              <div class="ret-bar" style="width:${(m.retention_score || 0) * 100}%;background:${retColor(m.retention_score)}"></div>
+            </div>
+          </div>
+        `).join('') : '<div class="empty-state">Aucune mémoire — testez via Claude Desktop</div>';
+
+        drawGraph(graph);
+        updateRetentionChart(retention);
+        document.getElementById('last-update').textContent =
+          new Date().toLocaleTimeString('fr-FR');
+        document.getElementById('live-status').textContent = 'Live';
+      } catch (e) {
+        console.error(e);
+        document.getElementById('live-status').textContent = 'Erreur';
       }
     }
-    loadReport();
+
+    async function resetDemo() {
+      await fetch('/reset', { method: 'POST' });
+      benchmarkData = null;
+      refresh();
+    }
+
+    refresh();
+    setInterval(refresh, 5000);
+    window.addEventListener('resize', () => {
+      fetchJSON('/graph').then(drawGraph).catch(() => {});
+    });
   </script>
 </body>
 </html>

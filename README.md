@@ -1,84 +1,86 @@
-# Memory MCP Challenge — FINALE
+# MemBridge — Mémoire partagée pour agents IA
 
-**Hackathon INTELO2026** — Serveur MCP de mémoire avec benchmark chiffré tokens/qualité.
+**Hackathon INTELO 2026 · LBS Lomé Business School**
 
-> Construisez un serveur MCP qui prouve qu'on peut réduire drastiquement les tokens d'un agent conversationnel **sans le rendre amnésique**.
+> Serveur MCP de mémoire externe : stocke le contexte utile, le restitue à la demande, **réduit ≥ 70 % des tokens** sans rendre l'agent amnésique.
 
-## Finale — règles importantes
+## Problème → Solution
 
-Le squelette fourni **ne suffit pas** pour merger une PR :
-
-| Job CI | Passent avec le squelette ? |
-|--------|----------------------------|
-| `lint` + `smoke` | Oui |
-| `regression` | **Non** — paraphrases, bruit, compression |
-| `finale-eval` | **Non** — tests cachés (dépôt privé) |
-
-Les tests cachés ne sont **pas dans ce dépôt**. Même avec l'IA, il faut une vraie recherche sémantique et une vraie compression.
-
-## Contexte
-
-| Mode | Comportement | Coût tokens |
-|------|-------------|-------------|
-| **Naïf** | Renvoie tout l'historique à chaque tour | Croissance quadratique |
-| **Mémoire MCP** | Stocke, recherche, résume | Quasi plat |
-
-## Structure
-
-```
-memory-mcp-challenge/
-├── src/memory_mcp/     # Serveur MCP + 4 outils
-├── benchmark/          # Harnais naïf vs mémoire
-├── demo/               # Agent de démo (stub)
-├── dashboard/          # Visualisation benchmark
-├── tests/
-│   ├── test_smoke.py       # API OK
-│   └── test_regression.py  # Barre finale (dur)
-└── .github/workflows/  # CI multi-niveaux
-```
-
-## Installation
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-pip install -e ".[dev]"
-```
-
-## Utilisation
-
-```bash
-# Tests fumée (doivent passer)
-pytest tests/test_smoke.py -v
-
-# Tests régression (doivent passer pour merger)
-PYTHONPATH=src:. pytest tests/test_regression.py tests/test_storage.py tests/test_tools.py -v
-
-# Benchmark
-python -m benchmark.harness
-
-# Serveur MCP
-memory-mcp
-```
+| | Mode naïf | MemBridge |
+|---|-----------|-----------|
+| Contexte/tour | Tout l'historique (O(T²)) | Résumé + top-3 + 3 tours (~125 tok) |
+| Qualité | OK mais coûteux | Maintenue via `memory_search` |
+| Oubli | Troncature brutale | Ebbinghaus intelligent |
 
 ## Les 4 outils MCP
 
-| Outil | Description |
-|-------|-------------|
-| `memory_store(content, tags)` | Stocke un fragment de mémoire |
-| `memory_search(query, top_k)` | Recherche **sémantique** (paraphrases !) |
-| `memory_summarize(session)` | Résumé **compressé** conservant les faits |
-| `memory_stats()` | Tokens consommés |
+| Outil | Rôle |
+|-------|------|
+| `memory_store(content, tags)` | Stocke avec embeddings sémantiques |
+| `memory_search(query, top_k)` | Recherche par similarité + Ebbinghaus |
+| `memory_summarize(session)` | Résumé compressé extractif |
+| `memory_stats()` | Tokens économisés, coût €, métriques |
 
-## Critères de merge (PR)
+## Installation
 
-1. **Régression** : paraphrases top-1, isolation sessions, compression ≤ 25 %, économie ≥ 60 % sur 50 tours
-2. **Finale cachée** : économie ≥ 70 %, seed dynamique, anti-hardcoding
+```powershell
+cd "C:\Users\HP\Desktop\Projet\SEIC 2026\hck cursor"
+python -m venv .venv
+.\.venv\Scripts\pip install -e ".[dev]"
+.\scripts\warmup.ps1
+```
 
-## Organisateurs
+## Démarrage rapide
 
-Voir [ADMIN.md](ADMIN.md) pour configurer le dépôt privé et les secrets CI.
+```powershell
+# Tests
+$env:PYTHONPATH="src"
+.\.venv\Scripts\python -m pytest tests/test_smoke.py tests/test_tools.py -v
 
-## Pitch
+# Benchmark chiffré (→ benchmark/results/report.json)
+$env:PYTHONPATH="src;."
+.\.venv\Scripts\python -m benchmark.harness
 
-Voir [PITCH.md](PITCH.md).
+# Agent démo support client
+$env:PYTHONPATH="src;."
+.\.venv\Scripts\python demo/agent.py
+
+# Dashboard live
+$env:PYTHONPATH="src;."
+.\.venv\Scripts\python -m dashboard.server
+# → http://localhost:8080
+
+# Serveur MCP (Claude Desktop le lance automatiquement)
+$env:PYTHONPATH="src"
+.\.venv\Scripts\python -m memory_mcp.server
+```
+
+## Claude Desktop
+
+Voir `claude_desktop_config.example.json` et `DEMO.md`.
+
+## Architecture
+
+```
+Claude Desktop ↔ STDIO ↔ memory_mcp.server
+                              ├── SQLite (~/.membridge/)
+                              ├── sentence-transformers (384d)
+                              ├── Ebbinghaus (rétention + purge)
+                              └── Résumé incrémental
+```
+
+## Critères hackathon
+
+- ✅ Réduction tokens ≥ 70 % (benchmark 50 tours)
+- ✅ 10 questions pièges (qualité ≥ 80 %)
+- ✅ Agent externe Claude Desktop connecté
+- ✅ Dashboard courbes naïf vs MemBridge
+- ✅ Oubli intelligent (Ebbinghaus)
+
+## Branche Git
+
+Travail sur `develop` → PR vers `main` quand CI vert.
+
+## Équipe
+
+3 personnes · Prototype + démo live · Benchmark chiffré

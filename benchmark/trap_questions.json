@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "question": "Quel était l'email du client ?",
+    "query": "coordonnées email de contact",
+    "expected": "marie.dupont@email.fr"
+  },
+  {
+    "id": 2,
+    "question": "Quel est le numéro de contrat ?",
+    "query": "référence légale du dossier client",
+    "expected": "CTR-2024-8847"
+  },
+  {
+    "id": 3,
+    "question": "Comment s'appelle la cliente ?",
+    "query": "identité de l'interlocutrice premium",
+    "expected": "Marie Dupont"
+  },
+  {
+    "id": 4,
+    "question": "Quel montant incorrect sur la facture de mars ?",
+    "query": "écart tarifaire facturation printemps",
+    "expected": "149,90"
+  },
+  {
+    "id": 5,
+    "question": "Quand le bug mobile a-t-il été signalé ?",
+    "query": "incident application mobile date",
+    "expected": "12/02"
+  },
+  {
+    "id": 6,
+    "question": "Quelle entreprise est concernée ?",
+    "query": "société cliente premium",
+    "expected": "TechCorp"
+  },
+  {
+    "id": 7,
+    "question": "Quel était le montant attendu de la facture ?",
+    "query": "tarif normal facture mars",
+    "expected": "99,90"
+  },
+  {
+    "id": 8,
+    "question": "Le client est-il premium ?",
+    "query": "statut client VIP premium",
+    "expected": "premium"
+  },
+  {
+    "id": 9,
+    "question": "Quel type de problème technique ?",
+    "query": "bug application mobile",
+    "expected": "mobile"
+  },
+  {
+    "id": 10,
+    "question": "Quel mois pour la facture contestée ?",
+    "query": "facture mois printemps",
+    "expected": "mars"
+  }
+]
