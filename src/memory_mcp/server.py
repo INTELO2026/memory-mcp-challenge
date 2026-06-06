@@ -20,14 +20,27 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="memory_store",
-            description="Stocke un fragment de mémoire avec tags optionnels.",
+            description="Stocke un fragment de mémoire avec métadonnées (session, importance, date).",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "content": {"type": "string", "description": "Contenu à mémoriser"},
-                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags"},
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Tags catégorisant l'information",
+                    },
                     "session": {"type": "string", "description": "ID de session"},
                     "turn": {"type": "integer", "description": "Numéro de tour"},
+                    "importance": {
+                        "type": "number",
+                        "description": "Importance (0.0-1.0, défaut 0.5)",
+                        "default": 0.5,
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Date ISO (défaut = maintenant)",
+                    },
                 },
                 "required": ["content"],
             },
@@ -59,7 +72,7 @@ async def list_tools() -> list[Tool]:
                     "max_chars": {
                         "type": "integer",
                         "description": "Taille max du résumé",
-                        "default": 500,
+                        "default": 400,
                     },
                 },
             },
@@ -80,6 +93,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             tags=arguments.get("tags"),
             session=arguments.get("session", "default"),
             turn=arguments.get("turn", 0),
+            importance=arguments.get("importance", 0.5),
+            date=arguments.get("date"),
         )
     elif name == "memory_search":
         result = tools_handler.memory_search(

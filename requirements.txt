@@ -1,5 +1,7 @@
 mcp>=1.0.0
 tiktoken>=0.7.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
 
 # Dev (CI installe aussi via pyproject)
 pytest>=8.0.0

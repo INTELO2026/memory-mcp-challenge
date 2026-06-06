@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "memory-mcp": {
+      "description": "Serveur de mémoire MCP — HTTP (SSE) pour agents Cursor",
+      "url": "http://localhost:8010/mcp/sse",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}\\src;${workspaceFolder}"
+      }
+    }
+  }
+}
