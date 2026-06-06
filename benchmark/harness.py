@@ -179,9 +179,7 @@ def run_benchmark(
 
     if write:
         RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        RESULTS_PATH.write_text(
-            json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        RESULTS_PATH.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
     return report
 
@@ -203,7 +201,8 @@ def main() -> None:
     print(f"Tokens MemBridge      : {mem_t:,}")
     print(f"Économie tokens       : {report['savings_pct']} %")
     print(f"Qualité (MemBridge)   : {q['passed']}/{q['total']} ({q['score_pct']} %)")
-    print(f"Qualité (naïf)        : {report['quality_naive']['passed']}/{report['quality_naive']['total']}")
+    qn = report["quality_naive"]
+    print(f"Qualité (naïf)        : {qn['passed']}/{qn['total']}")
     print(f"Facteur de croissance : {report['memory']['growth_factor']:.2f} (≈1 = contexte stable)")
     print(f"\n--- Coût par modèle (models.dev, {cur}) ---")
     for c in cost["per_model"]:
@@ -214,14 +213,18 @@ def main() -> None:
             elif c.get("match") == "regex" and c.get("requested") != c.get("model"):
                 note = f"  [regex « {c['requested']} » → {c['model']}]"
             label = c.get("requested", c["model"])
-            print(f"  {label:<24} {c['input_price_per_1m']:>7} {cur}/1M  "
-                  f"naïf {c['naive']:.6f} → MemBridge {c['memory']:.6f}  "
-                  f"(économie {c['saved']:.6f}){note}")
+            print(
+                f"  {label:<24} {c['input_price_per_1m']:>7} {cur}/1M  "
+                f"naïf {c['naive']:.6f} → MemBridge {c['memory']:.6f}  "
+                f"(économie {c['saved']:.6f}){note}"
+            )
         else:
             print(f"  {c.get('requested', c['model']):<24} non chiffré")
     t = cost["total"]
-    print(f"  {'TOTAL (somme modèles)':<28} "
-          f"naïf {t['naive']:.6f} → MemBridge {t['memory']:.6f}  (économie {t['saved']:.6f} {cur})")
+    print(
+        f"  {'TOTAL (somme modèles)':<28} "
+        f"naïf {t['naive']:.6f} → MemBridge {t['memory']:.6f}  (économie {t['saved']:.6f} {cur})"
+    )
     print(f"\nRapport écrit         : {RESULTS_PATH}")
 
 

@@ -55,17 +55,82 @@ class MemoryEntry:
     score: float = 0.0
 
 
-_STOPWORDS = frozenset({
-    "a", "au", "aux", "ce", "ces", "de", "des", "du", "en", "est",
-    "et", "il", "je", "la", "le", "les", "ma", "mon", "ne", "on",
-    "ou", "pas", "pour", "que", "qui", "sa", "se", "son", "sur",
-    "un", "une", "vos", "votre", "dans", "avec", "cette", "sont",
-    "fait", "faites", "peut", "leur", "nous", "vous", "elles",
-    "ils", "moi", "toi", "lui", "elle", "ceci", "cela", "donc",
-    "car", "mais", "plus", "aussi", "comme", "tout", "tous",
-    "toute", "toutes", "chaque", "quel", "quelle", "quels",
-    "quelles", "mes", "tes", "ses", "nos", "vos", "leurs",
-})
+_STOPWORDS = frozenset(
+    {
+        "a",
+        "au",
+        "aux",
+        "ce",
+        "ces",
+        "de",
+        "des",
+        "du",
+        "en",
+        "est",
+        "et",
+        "il",
+        "je",
+        "la",
+        "le",
+        "les",
+        "ma",
+        "mon",
+        "ne",
+        "on",
+        "ou",
+        "pas",
+        "pour",
+        "que",
+        "qui",
+        "sa",
+        "se",
+        "son",
+        "sur",
+        "un",
+        "une",
+        "vos",
+        "votre",
+        "dans",
+        "avec",
+        "cette",
+        "sont",
+        "fait",
+        "faites",
+        "peut",
+        "leur",
+        "nous",
+        "vous",
+        "elles",
+        "ils",
+        "moi",
+        "toi",
+        "lui",
+        "elle",
+        "ceci",
+        "cela",
+        "donc",
+        "car",
+        "mais",
+        "plus",
+        "aussi",
+        "comme",
+        "tout",
+        "tous",
+        "toute",
+        "toutes",
+        "chaque",
+        "quel",
+        "quelle",
+        "quels",
+        "quelles",
+        "mes",
+        "tes",
+        "ses",
+        "nos",
+        "vos",
+        "leurs",
+    }
+)
 
 
 def _detect_entity_patterns(text: str) -> set[str]:
@@ -90,7 +155,8 @@ def _detect_entity_patterns(text: str) -> set[str]:
     if re.search(
         r"\b\d{1,2}\s+(janvier|février|mars|avril|mai|juin|"
         r"juillet|août|septembre|octobre|novembre|décembre)\b",
-        text, re.IGNORECASE,
+        text,
+        re.IGNORECASE,
     ):
         types.add("date")
     # Nom de personne
@@ -107,13 +173,25 @@ def _detect_entity_types(text: str) -> set[str]:
     # NB: « client » est volontairement absent de `person` car « dossier client »
     # désigne un enregistrement, pas une personne — il faut éviter de tirer les
     # requêtes de type « référence » vers les fiches client.
-    if re.search(r"(référence|numéro|code\s+(contrat|client|dossier)|identifiant|contrat|immatriculation)", text_lower):
+    if re.search(
+        r"(référence|numéro|code\s+(contrat|client|dossier)|identifiant|contrat|immatriculation)",
+        text_lower,
+    ):
         types.add("reference")
-    if re.search(r"(email|mail|@|coordonnées?|contact|téléphone|tel\b|courriel|adresse)", text_lower):
+    if re.search(
+        r"(email|mail|@|coordonnées?|contact|téléphone|tel\b|courriel|adresse)",
+        text_lower,
+    ):
         types.add("email")
-    if re.search(r"(nom|prénom|identité|interlocuteur|interlocutrice|appelle|m'appelle|vip)", text_lower):
+    if re.search(
+        r"(nom|prénom|identité|interlocuteur|interlocutrice|appelle|m'appelle|vip)",
+        text_lower,
+    ):
         types.add("person")
-    if re.search(r"(facture|prix|coût|montant|€|euros?|tarif|paiement|écart|différence)", text_lower):
+    if re.search(
+        r"(facture|prix|coût|montant|€|euros?|tarif|paiement|écart|différence)",
+        text_lower,
+    ):
         types.add("amount")
     if re.search(r"(date|quand|jour|mois|signalé|déclaré)", text_lower):
         types.add("date")
@@ -127,7 +205,8 @@ def _tokenize(text: str) -> dict[str, float]:
 
     # 1) Mots significatifs (poids fort)
     words = [
-        w for w in re.findall(r"[a-z0-9éèêëàâîïôùûç_@\.\-]+(?:[a-z0-9éèêëàâîïôùûç]+)*", text_lower)
+        w
+        for w in re.findall(r"[a-z0-9éèêëàâîïôùûç_@\.\-]+(?:[a-z0-9éèêëàâîïôùûç]+)*", text_lower)
         if len(w) > 2 and w not in _STOPWORDS
     ]
     for w in words:
@@ -140,7 +219,7 @@ def _tokenize(text: str) -> dict[str, float]:
 
     # 3) Bigrammes de mots consécutifs
     for i in range(len(words) - 1):
-        vec[f"p:{words[i]}_{words[i+1]}"] = vec.get(f"p:{words[i]}_{words[i+1]}", 0) + 3.0
+        vec[f"p:{words[i]}_{words[i + 1]}"] = vec.get(f"p:{words[i]}_{words[i + 1]}", 0) + 3.0
 
     if not vec:
         return {}
@@ -151,46 +230,212 @@ def _tokenize(text: str) -> dict[str, float]:
 # Dictionnaire de synonymes français génériques (expansion de requête)
 # Technique standard en RI — pas de hardcoding des réponses du test.
 _SYNONYM_MAP: dict[str, tuple[str, ...]] = {
-    "référence": ("numéro", "code", "identifiant", "réf", "immatriculation",),
-    "références": ("numéros", "codes", "identifiants",),
-    "numéro": ("référence", "code", "identifiant", "n°",),
-    "numéros": ("références", "codes",),
-    "contrat": ("dossier", "abonnement", "souscription", "client",),
-    "contrats": ("dossiers", "abonnements",),
-    "dossier": ("contrat", "client", "compte", "fichier",),
-    "client": ("usager", "abonné", "client", "compte",),
-    "cliente": ("client", "usagère",),
-    "identité": ("nom", "prénom", "personne", "interlocuteur", "identité",),
-    "nom": ("identité", "nom", "prénom",),
-    "coordonnées": ("contact", "adresse", "email", "téléphone", "cordonnée",),
-    "coordonnée": ("contact", "adresse", "email",),
-    "contact": ("email", "téléphone", "adresse", "coordonnée",),
-    "email": ("courriel", "mail", "adresse", "contact",),
-    "téléphone": ("tel", "téléphone", "portable", "fixe",),
-    "mobile": ("portable", "téléphone", "app", "application",),
-    "application": ("app", "logiciel", "programme", "mobile",),
-    "tarif": ("prix", "coût", "montant", "facture", "tarification",),
-    "tarifs": ("prix", "coûts", "montants",),
-    "prix": ("coût", "tarif", "montant", "facture",),
-    "facture": ("facturation", "montant", "prix", "coût", "addition",),
-    "facturation": ("facture", "paiement", "montant",),
-    "montant": ("somme", "prix", "coût", "total", "facture",),
-    "écart": ("différence", "erreur", "variation", "disparité",),
-    "incident": ("problème", "bug", "erreur", "dysfonctionnement",),
-    "problème": ("incident", "bug", "erreur", "dysfonctionnement",),
-    "bug": ("incident", "problème", "erreur", "dysfonctionnement",),
-    "date": ("quand", "jour", "moment", "échéance",),
-    "signalé": ("déclaré", "rapporté", "remonté",),
-    "affiche": ("indique", "montre", "marque",),
-    "mars": ("mars", "03", "3",),
-    "février": ("février", "02", "2",),
-    "facture": ("facturation", "note", "addition", "relevé",),
-    "premium": ("prioritaire", "vip", "gold",),
-    "techcorp": ("techcorp", "entreprise", "société",),
+    "référence": (
+        "numéro",
+        "code",
+        "identifiant",
+        "réf",
+        "immatriculation",
+    ),
+    "références": (
+        "numéros",
+        "codes",
+        "identifiants",
+    ),
+    "numéro": (
+        "référence",
+        "code",
+        "identifiant",
+        "n°",
+    ),
+    "numéros": (
+        "références",
+        "codes",
+    ),
+    "contrat": (
+        "dossier",
+        "abonnement",
+        "souscription",
+        "client",
+    ),
+    "contrats": (
+        "dossiers",
+        "abonnements",
+    ),
+    "dossier": (
+        "contrat",
+        "client",
+        "compte",
+        "fichier",
+    ),
+    "client": (
+        "usager",
+        "abonné",
+        "client",
+        "compte",
+    ),
+    "cliente": (
+        "client",
+        "usagère",
+    ),
+    "identité": (
+        "nom",
+        "prénom",
+        "personne",
+        "interlocuteur",
+        "identité",
+    ),
+    "nom": (
+        "identité",
+        "nom",
+        "prénom",
+    ),
+    "coordonnées": (
+        "contact",
+        "adresse",
+        "email",
+        "téléphone",
+        "cordonnée",
+    ),
+    "coordonnée": (
+        "contact",
+        "adresse",
+        "email",
+    ),
+    "contact": (
+        "email",
+        "téléphone",
+        "adresse",
+        "coordonnée",
+    ),
+    "email": (
+        "courriel",
+        "mail",
+        "adresse",
+        "contact",
+    ),
+    "téléphone": (
+        "tel",
+        "téléphone",
+        "portable",
+        "fixe",
+    ),
+    "mobile": (
+        "portable",
+        "téléphone",
+        "app",
+        "application",
+    ),
+    "application": (
+        "app",
+        "logiciel",
+        "programme",
+        "mobile",
+    ),
+    "tarif": (
+        "prix",
+        "coût",
+        "montant",
+        "facture",
+        "tarification",
+    ),
+    "tarifs": (
+        "prix",
+        "coûts",
+        "montants",
+    ),
+    "prix": (
+        "coût",
+        "tarif",
+        "montant",
+        "facture",
+    ),
+    "facture": (
+        "facturation",
+        "montant",
+        "prix",
+        "coût",
+        "addition",
+        "note",
+        "relevé",
+    ),
+    "facturation": (
+        "facture",
+        "paiement",
+        "montant",
+    ),
+    "montant": (
+        "somme",
+        "prix",
+        "coût",
+        "total",
+        "facture",
+    ),
+    "écart": (
+        "différence",
+        "erreur",
+        "variation",
+        "disparité",
+    ),
+    "incident": (
+        "problème",
+        "bug",
+        "erreur",
+        "dysfonctionnement",
+    ),
+    "problème": (
+        "incident",
+        "bug",
+        "erreur",
+        "dysfonctionnement",
+    ),
+    "bug": (
+        "incident",
+        "problème",
+        "erreur",
+        "dysfonctionnement",
+    ),
+    "date": (
+        "quand",
+        "jour",
+        "moment",
+        "échéance",
+    ),
+    "signalé": (
+        "déclaré",
+        "rapporté",
+        "remonté",
+    ),
+    "affiche": (
+        "indique",
+        "montre",
+        "marque",
+    ),
+    "mars": (
+        "mars",
+        "03",
+        "3",
+    ),
+    "février": (
+        "février",
+        "02",
+        "2",
+    ),
+    "premium": (
+        "prioritaire",
+        "vip",
+        "gold",
+    ),
+    "techcorp": (
+        "techcorp",
+        "entreprise",
+        "société",
+    ),
 }
 
 
 # --- Backend d'embedding Gemini ----------------------------------------------
+
 
 def _resolve_backend() -> str:
     """Décide une fois pour toutes du backend d'embedding."""
@@ -346,7 +591,8 @@ class MemoryStore:
     def list_keys(self, session: str | None = None) -> list[MemoryEntry]:
         """Toutes les entrées (avec leur clé), pour un index direct sans recherche."""
         rows = self._conn.execute(
-            "SELECT * FROM memories" + (" WHERE session = ?" if session else "")
+            "SELECT * FROM memories"
+            + (" WHERE session = ?" if session else "")
             + " ORDER BY id ASC",
             (session,) if session else (),
         ).fetchall()
@@ -355,7 +601,8 @@ class MemoryStore:
     def get_by_key(self, key: str, session: str | None = None) -> MemoryEntry | None:
         """Récupère l'entrée la plus récente portant exactement cette clé."""
         rows = self._conn.execute(
-            "SELECT * FROM memories WHERE key = ?" + (" AND session = ?" if session else "")
+            "SELECT * FROM memories WHERE key = ?"
+            + (" AND session = ?" if session else "")
             + " ORDER BY id DESC LIMIT 1",
             (key, session) if session else (key,),
         ).fetchall()

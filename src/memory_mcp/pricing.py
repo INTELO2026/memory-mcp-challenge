@@ -191,21 +191,24 @@ def list_models(query: str | None = None, refresh: bool = False) -> list[dict]:
             cost = m.get("cost") or {}
             if cost.get("input") is None or cost.get("output") is None:
                 continue
-            out.append({
-                "provider": prov_id,
-                "model": mid,
-                "name": m.get("name") or mid,
-                "input": float(cost["input"]),
-                "output": float(cost["output"]),
-                "release_date": m.get("release_date") or m.get("last_updated") or "",
-            })
+            out.append(
+                {
+                    "provider": prov_id,
+                    "model": mid,
+                    "name": m.get("name") or mid,
+                    "input": float(cost["input"]),
+                    "output": float(cost["output"]),
+                    "release_date": m.get("release_date") or m.get("last_updated") or "",
+                }
+            )
     if query:
         try:
             rx = re.compile(query, re.IGNORECASE)
         except re.error:
             rx = re.compile(re.escape(query), re.IGNORECASE)
         out = [
-            m for m in out
+            m
+            for m in out
             if rx.search(m["model"]) or rx.search(m["name"]) or rx.search(m["provider"])
         ]
     out.sort(key=lambda x: (x["provider"], x["model"]))

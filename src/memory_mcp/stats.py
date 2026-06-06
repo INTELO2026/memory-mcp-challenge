@@ -80,11 +80,13 @@ class TokenStats:
     def _record_turn(self, naive_turn: int, actual_turn: int) -> None:
         self.naive_total += naive_turn
         self.membridge_total += actual_turn
-        self.events.append({
-            "ts": datetime.now(timezone.utc).isoformat(),
-            "naive": naive_turn,
-            "actual": actual_turn,
-        })
+        self.events.append(
+            {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "naive": naive_turn,
+                "actual": actual_turn,
+            }
+        )
         self._save()
 
     def record_store(self, content_tokens: int) -> None:
@@ -134,14 +136,16 @@ class TokenStats:
             cum_n += agg[key]["naive"]
             cum_a += agg[key]["actual"]
             gain = round((cum_n - cum_a) / cum_n * 100, 1) if cum_n else 0.0
-            points.append({
-                "label": key,
-                "naive": agg[key]["naive"],
-                "actual": agg[key]["actual"],
-                "naive_cum": cum_n,
-                "actual_cum": cum_a,
-                "gain_pct": gain,
-            })
+            points.append(
+                {
+                    "label": key,
+                    "naive": agg[key]["naive"],
+                    "actual": agg[key]["actual"],
+                    "naive_cum": cum_n,
+                    "actual_cum": cum_a,
+                    "gain_pct": gain,
+                }
+            )
         return {"bucket": bucket, "points": points, "turns": len(self.events)}
 
     def context_tokens(self) -> int:

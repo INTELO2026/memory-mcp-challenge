@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import sys
 
-from benchmark.harness import generate_long_conversation, load_json, CONVERSATION_PATH
+from benchmark.harness import CONVERSATION_PATH, generate_long_conversation, load_json
 from benchmark.naive import simulate_naive_conversation
 from benchmark.quality import TRAP_QUESTIONS
 from memory_mcp.stats import reset_stats
@@ -58,8 +58,10 @@ def run_demo(turn_count: int = 40, session: str = "demo", model: str = "claude-o
         cur = cost["currency"]
         for c in cost["per_model"]:
             if c.get("pricing_found"):
-                print(f"Tarif {c['model']} : {c['input_price_per_1m']} {cur}/1M entrée, "
-                      f"{c['output_price_per_1m']} {cur}/1M sortie (models.dev)")
+                print(
+                    f"Tarif {c['model']} : {c['input_price_per_1m']} {cur}/1M entrée, "
+                    f"{c['output_price_per_1m']} {cur}/1M sortie (models.dev)"
+                )
     print()
 
     print("--- Résumé compressé de la session ---")
@@ -79,8 +81,9 @@ def run_demo(turn_count: int = 40, session: str = "demo", model: str = "claude-o
         print(f"        souvenir: {top}")
 
     total = len(TRAP_QUESTIONS)
-    print(f"\nQualité MemBridge : {passed}/{total} questions réussies "
-          f"({100 * passed / total:.0f} %)")
+    print(
+        f"\nQualité MemBridge : {passed}/{total} questions réussies ({100 * passed / total:.0f} %)"
+    )
     print("Conclusion : contexte fortement compressé, qualité préservée.")
 
 

@@ -22,6 +22,7 @@ import os
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from mcp.server.sse import SseServerTransport
 from pydantic import BaseModel
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -30,6 +31,7 @@ from memory_mcp.server import app as mcp_app
 from memory_mcp.stats import reset_stats, stats_path
 
 # --- Schémas Pydantic (REST) ---
+
 
 class StoreRequest(BaseModel):
     content: str
@@ -139,7 +141,7 @@ tools_handler = get_tools()
 fastapi_app = FastAPI(
     title="Memory MCP HTTP API",
     description="API HTTP pour interagir avec le serveur de mémoire MCP. "
-                "Transport REST (endpoints /api/v1/*) et MCP natif via SSE (/mcp/sse).",
+    "Transport REST (endpoints /api/v1/*) et MCP natif via SSE (/mcp/sse).",
     version="0.1.0",
 )
 
@@ -313,7 +315,7 @@ async def api_stats(
         default=None,
         description="Slug(s) de modèle pour chiffrer le coût (répéter ?model=… "
         "ou valeurs séparées par des virgules).",
-    )
+    ),
 ):
     return StatsResponse(**tools_handler.memory_stats(model=model))
 
@@ -323,7 +325,7 @@ async def api_timeseries(
     bucket: str = Query(
         default="hour",
         description="Granularité d'agrégation : 'hour', 'day' ou 'month'.",
-    )
+    ),
 ):
     """Série temporelle de l'usage (naïf vs MemBridge) agrégée par tranche."""
     from memory_mcp.stats import get_stats
@@ -339,7 +341,7 @@ async def api_models(
         default=None,
         description="Filtre (regex insensible à la casse) sur l'id, le nom ou le "
         "fournisseur. Vide = catalogue complet.",
-    )
+    ),
 ):
     """Catalogue des modèles tarifés (models.dev) pour la vue d'ensemble pricing."""
     from memory_mcp.pricing import list_models
@@ -354,7 +356,7 @@ async def api_reset(
         default=False,
         description="Si true, vide aussi les entrées en mémoire (dangereux). "
         "Par défaut : réinitialise uniquement les compteurs.",
-    )
+    ),
 ):
     reset_stats()
     removed = tools_handler.store.clear() if clear else 0
@@ -370,8 +372,6 @@ async def api_reset(
 
 
 # --- Middleware ASGI : intercepte /mcp/sse et /mcp/message ---
-
-from mcp.server.sse import SseServerTransport
 
 sse_transport = SseServerTransport("/mcp/message")
 
@@ -411,8 +411,10 @@ app: ASGIApp = _McpTransport(fastapi_app)
 
 # --- CLI ---
 
+
 def main() -> None:
     import uvicorn
+
     uvicorn.run(
         "memory_mcp.http_server:app",
         host="0.0.0.0",

@@ -36,9 +36,7 @@ TRAP_QUESTIONS: list[tuple[str, str]] = [
 ]
 
 
-def evaluate_memory_quality(
-    tools: MemoryTools, session: str, top_k: int = 3
-) -> dict:
+def evaluate_memory_quality(tools: MemoryTools, session: str, top_k: int = 3) -> dict:
     """Évalue le mode MemBridge : la recherche ramène-t-elle le bon fait ?"""
     details = []
     passed = 0

@@ -20,7 +20,9 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="memory_store",
-            description="Stocke un fragment de mémoire avec métadonnées (session, importance, date).",
+            description=(
+                "Stocke un fragment de mémoire avec métadonnées (session, importance, date)."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
