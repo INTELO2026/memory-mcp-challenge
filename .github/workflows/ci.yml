@@ -66,6 +66,10 @@ jobs:
       - name: Regression tests (finale — squelette insuffisant)
         env:
           PYTHONPATH: src:.
+          # Embeddings Gemini (recommandé). Ajouter le secret dans
+          # Settings > Secrets > Actions. Sans clé, installer le fallback local
+          # avec `pip install -e ".[local]"` (tire torch + modèle e5).
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: pytest tests/test_regression.py tests/test_storage.py tests/test_tools.py -v --tb=short
 
   finale-eval:
@@ -97,5 +101,6 @@ jobs:
         env:
           FINALE_EVAL: "1"
           EVAL_SEED: ${{ secrets.EVAL_SEED }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PYTHONPATH: src:.
         run: pytest _eval/hidden_tests/ -v --tb=short

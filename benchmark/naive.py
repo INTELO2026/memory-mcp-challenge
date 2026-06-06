@@ -13,18 +13,23 @@ def build_naive_context(history: list[dict]) -> tuple[str, int]:
 
 
 def simulate_naive_conversation(turns: list[dict]) -> dict:
-    """Simule une conversation en mode naïf."""
+    """Simule une conversation en mode naïf (historique complet à chaque tour)."""
     history: list[dict] = []
     total_tokens = 0
+    per_turn: list[int] = []
+    cumulative: list[int] = []
 
     for turn in turns:
         history.append({"role": turn["role"], "content": turn["content"]})
         _, tokens = build_naive_context(history)
         total_tokens += tokens
+        per_turn.append(tokens)
+        cumulative.append(total_tokens)
 
     return {
         "mode": "naive",
         "turns": len(turns),
         "total_tokens": total_tokens,
-        "tokens_per_turn": [count_tokens(f"[{t['role']}] {t['content']}") for t in turns],
+        "tokens_per_turn": per_turn,
+        "cumulative": cumulative,
     }

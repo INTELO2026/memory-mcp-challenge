@@ -3,79 +3,153 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memory MCP — Benchmark Dashboard</title>
+  <title>MemBridge — Tableau de bord</title>
   <style>
-    :root { --red: #ef4444; --green: #22c55e; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; }
+    :root {
+      --red: #ef4444; --green: #22c55e; --bg: #0b1120; --card: #1e293b;
+      --text: #f1f5f9; --muted: #94a3b8; --accent: #38bdf8;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
-    h1 { margin-bottom: 0.5rem; }
-    .subtitle { color: #94a3b8; margin-bottom: 2rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; }
-    .card h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 1rem; }
-    .metric { font-size: 2.5rem; font-weight: 700; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
+    h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+    .subtitle { color: var(--muted); margin-bottom: 1.5rem; }
+    .badge { display: inline-block; font-size: .75rem; padding: .15rem .6rem; border-radius: 999px;
+             background: #0f243b; color: var(--accent); border: 1px solid #1e3a5f; margin-left: .5rem; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.25rem; }
+    .card { background: var(--card); border-radius: 14px; padding: 1.25rem; }
+    .card h2 { font-size: .8rem; color: var(--muted); margin-bottom: .6rem; text-transform: uppercase; letter-spacing: .04em; }
+    .metric { font-size: 2.2rem; font-weight: 800; line-height: 1; }
     .metric.naive { color: var(--red); }
     .metric.memory { color: var(--green); }
-    .savings { margin-top: 2rem; text-align: center; font-size: 1.5rem; }
-    .savings span { color: var(--green); font-weight: 700; }
-    canvas { width: 100%; height: 200px; margin-top: 1rem; }
-    .quality { margin-top: 1.5rem; }
-    .bar { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
-    .bar-fill { height: 100%; background: var(--green); transition: width 0.5s; }
-    pre { background: #0f172a; padding: 1rem; border-radius: 8px; overflow: auto; font-size: 0.8rem; margin-top: 1rem; }
+    .metric small { font-size: .85rem; font-weight: 500; color: var(--muted); }
+    .savings-card { grid-column: span 3; text-align: center; background: linear-gradient(135deg, #052e1a, #1e293b); }
+    .savings-value { font-size: 3rem; font-weight: 900; color: var(--green); }
+    .savings-sub { color: var(--muted); margin-top: .3rem; }
+    .chart-card { margin-bottom: 1.25rem; }
+    canvas { width: 100%; height: 320px; display: block; }
+    .legend { display: flex; gap: 1.5rem; margin-top: .75rem; font-size: .85rem; color: var(--muted); }
+    .legend span::before { content: "●"; margin-right: .35rem; }
+    .legend .l-naive::before { color: var(--red); }
+    .legend .l-mem::before { color: var(--green); }
+    .quality-row { display: flex; align-items: center; gap: 1rem; }
+    .bar { flex: 1; height: 12px; background: #334155; border-radius: 6px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--green); transition: width .5s; width: 0; }
+    .status { color: var(--muted); font-size: .8rem; margin-top: 1rem; }
+    .pulse { color: var(--accent); }
   </style>
 </head>
 <body>
-  <h1>Memory MCP Benchmark</h1>
-  <p class="subtitle">Hackathon INTELO2026 — Naïf vs Mémoire</p>
+  <h1>MemBridge <span class="badge" id="backend">backend: …</span> <span class="badge" id="livebadge">—</span></h1>
+  <p class="subtitle">Hackathon INTELO2026 — consommation de tokens : mode naïf vs mémoire MCP</p>
 
   <div class="grid">
     <div class="card">
       <h2>Mode naïf (tout l'historique)</h2>
-      <div class="metric naive" id="naive-tokens">—</div>
-      <p>tokens cumulés</p>
+      <div class="metric naive"><span id="naive-tokens">—</span> <small>tokens</small></div>
     </div>
     <div class="card">
-      <h2>Mode mémoire MCP</h2>
-      <div class="metric memory" id="memory-tokens">—</div>
-      <p>tokens cumulés</p>
+      <h2>Mode MemBridge (mémoire)</h2>
+      <div class="metric memory"><span id="memory-tokens">—</span> <small>tokens</small></div>
+    </div>
+    <div class="card">
+      <h2>Qualité — questions pièges</h2>
+      <div class="quality-row">
+        <div class="metric memory" style="font-size:1.6rem"><span id="q-passed">—</span>/<span id="q-total">—</span></div>
+        <div class="bar"><div class="bar-fill" id="q-bar"></div></div>
+      </div>
+    </div>
+
+    <div class="card savings-card">
+      <h2>Économie totale</h2>
+      <div class="savings-value" id="savings">— %</div>
+      <div class="savings-sub"><span id="savings-tokens">—</span> tokens économisés · <span id="savings-eur">—</span> €</div>
     </div>
   </div>
 
-  <div class="savings">
-    Économie : <span id="savings">—</span>
+  <div class="card chart-card">
+    <h2>Tokens cumulés par tour</h2>
+    <canvas id="chart"></canvas>
+    <div class="legend">
+      <span class="l-naive">Naïf (croissance quadratique)</span>
+      <span class="l-mem">MemBridge (quasi plat)</span>
+    </div>
   </div>
 
-  <div class="card quality">
-    <h2>Qualité — questions pièges</h2>
-    <p><span id="quality-score">—</span> / <span id="quality-total">—</span> réussies</p>
-    <div class="bar"><div class="bar-fill" id="quality-bar" style="width:0%"></div></div>
-  </div>
-
-  <div class="card">
-    <h2>Rapport JSON</h2>
-    <pre id="report">Chargez benchmark/results/report.json ou lancez python -m benchmark.harness > report.json</pre>
-  </div>
+  <p class="status" id="status">En attente de benchmark/results/report.json…</p>
 
   <script>
-    // TODO équipe : brancher sur les résultats live du benchmark
-    async function loadReport() {
+    const $ = (id) => document.getElementById(id);
+    const fmt = (n) => (n ?? 0).toLocaleString("fr-FR");
+    const canvas = $("chart");
+    const ctx = canvas.getContext("2d");
+
+    function resize() {
+      const r = canvas.getBoundingClientRect();
+      canvas.width = r.width * devicePixelRatio;
+      canvas.height = r.height * devicePixelRatio;
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    function drawChart(labels, naive, mem) {
+      const w = canvas.width / devicePixelRatio, h = canvas.height / devicePixelRatio;
+      const pad = { l: 60, r: 20, t: 20, b: 30 };
+      ctx.clearRect(0, 0, w, h);
+      const n = Math.max(naive.length, 1);
+      const maxY = Math.max(1, ...naive, ...mem);
+      const x = (i) => pad.l + (w - pad.l - pad.r) * (n === 1 ? 0 : i / (n - 1));
+      const y = (v) => h - pad.b - (h - pad.t - pad.b) * (v / maxY);
+
+      ctx.strokeStyle = "#334155"; ctx.lineWidth = 1; ctx.fillStyle = "#64748b"; ctx.font = "11px system-ui";
+      for (let g = 0; g <= 4; g++) {
+        const gy = pad.t + (h - pad.t - pad.b) * (g / 4);
+        ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(w - pad.r, gy); ctx.stroke();
+        ctx.fillText(fmt(Math.round(maxY * (1 - g / 4))), 6, gy + 4);
+      }
+
+      const line = (data, color) => {
+        ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.beginPath();
+        data.forEach((v, i) => (i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v))));
+        ctx.stroke();
+        const last = data.length - 1;
+        if (last >= 0) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x(last), y(data[last]), 3.5, 0, 7); ctx.fill(); }
+      };
+      line(naive, "#ef4444");
+      line(mem, "#22c55e");
+    }
+
+    async function tick() {
       try {
-        const res = await fetch('../benchmark/results/report.json');
-        const data = await res.json();
-        document.getElementById('naive-tokens').textContent = data.naive.total_tokens.toLocaleString();
-        document.getElementById('memory-tokens').textContent = data.memory.total_tokens.toLocaleString();
-        document.getElementById('savings').textContent = `-${data.savings_pct}% tokens`;
-        document.getElementById('quality-score').textContent = data.quality.passed;
-        document.getElementById('quality-total').textContent = data.quality.total;
-        document.getElementById('quality-bar').style.width = data.quality.score_pct + '%';
-        document.getElementById('report').textContent = JSON.stringify(data, null, 2);
+        const res = await fetch("../benchmark/results/report.json?_=" + Date.now());
+        if (!res.ok) throw new Error("no report");
+        const d = await res.json();
+
+        $("naive-tokens").textContent = fmt(d.naive.total_tokens);
+        $("memory-tokens").textContent = fmt(d.memory.total_tokens);
+        $("savings").textContent = (d.savings_pct ?? 0) + " %";
+        $("savings-tokens").textContent = fmt(d.savings_tokens);
+        $("savings-eur").textContent = (d.cost?.savings_eur ?? 0).toFixed(4);
+        $("backend").textContent = "backend: " + (d.embedding_backend || "?");
+
+        const q = d.quality || {};
+        $("q-passed").textContent = q.passed ?? 0;
+        $("q-total").textContent = q.total ?? 0;
+        $("q-bar").style.width = (q.score_pct ?? 0) + "%";
+
+        const live = d.live === true;
+        $("livebadge").textContent = live ? "● LIVE tour " + (d.current_turn ?? "") : "terminé";
+        $("livebadge").className = "badge" + (live ? " pulse" : "");
+
+        const labels = d.labels || (d.naive.cumulative || []).map((_, i) => i + 1);
+        drawChart(labels, d.naive.cumulative || [], d.memory.cumulative || []);
+        $("status").textContent = "Mis à jour " + new Date().toLocaleTimeString("fr-FR");
       } catch {
-        document.getElementById('report').textContent =
-          'Aucun rapport trouvé. Exécutez : python -m benchmark.harness';
+        $("status").textContent = "Aucun rapport. Lancez : python -m benchmark.live (puis servez via python -m http.server)";
       }
     }
-    loadReport();
+    tick();
+    setInterval(tick, 1000);
   </script>
 </body>
 </html>

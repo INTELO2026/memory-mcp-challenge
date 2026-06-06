@@ -28,6 +28,10 @@ async def list_tools() -> list[Tool]:
                     "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags"},
                     "session": {"type": "string", "description": "ID de session"},
                     "turn": {"type": "integer", "description": "Numéro de tour"},
+                    "importance": {
+                        "type": "number",
+                        "description": "Importance 0-1 (sinon estimée automatiquement)",
+                    },
                 },
                 "required": ["content"],
             },
@@ -80,6 +84,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             tags=arguments.get("tags"),
             session=arguments.get("session", "default"),
             turn=arguments.get("turn", 0),
+            importance=arguments.get("importance"),
         )
     elif name == "memory_search":
         result = tools_handler.memory_search(
