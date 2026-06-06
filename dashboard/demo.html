@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemBridge — Atelier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="ui.js"></script>
+</head>
+<body class="page-demo">
+  <div class="ambient" aria-hidden="true">
+    <div class="grid-overlay"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1>MemBridge</h1>
+          <p>Atelier MCP</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="live.html">Arena live</a>
+        <a href="mcp.html">Console MCP</a>
+        <a href="index.html">Benchmark</a>
+        <a href="bonus.html">Bonus</a>
+        <a href="demo.html" class="active">Atelier</a>
+      </nav>
+      <div class="sidebar-footer">Tour par tour · pipeline MCP visible</div>
+    </aside>
+
+    <main class="main">
+      <section class="hero reveal visible">
+        <p class="hero-eyebrow">Support TechCorp</p>
+        <h2>Atelier conversation</h2>
+        <p>
+          Avancez manuellement ou en auto-play. Chaque message déclenche
+          summarize + search en temps réel.
+        </p>
+        <div class="status-bar">
+          <span class="pill" id="demo-status">Initialisation…</span>
+        </div>
+      </section>
+
+      <div class="live-controls">
+        <button class="btn primary" id="btn-next">Tour suivant →</button>
+        <button class="btn" id="btn-auto">Auto-play</button>
+        <button class="btn" id="btn-new">Nouvelle session</button>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Fil conversation (<span id="progress">0/50</span>)</h3>
+          <div class="chat" id="chat-log"></div>
+        </div>
+        <div class="card">
+          <h3>Dernier appel MCP</h3>
+          <pre id="mcp-panel">—</pre>
+          <h3 style="margin-top:1rem">memory_stats()</h3>
+          <pre id="stats-panel">—</pre>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import {
+      appendChatMessage,
+      createLiveSession,
+      formatNumber,
+      stepLiveSession,
+    } from "./live-api.js";
+
+    let sessionId = null;
+    let totalTurns = 50;
+    let autoTimer = null;
+
+    const statusEl = document.getElementById("demo-status");
+    const chatLog = document.getElementById("chat-log");
+    const mcpPanel = document.getElementById("mcp-panel");
+    const statsPanel = document.getElementById("stats-panel");
+    const progressEl = document.getElementById("progress");
+    const btnNext = document.getElementById("btn-next");
+    const btnAuto = document.getElementById("btn-auto");
+    const btnNew = document.getElementById("btn-new");
+
+    async function newSession() {
+      clearInterval(autoTimer);
+      chatLog.innerHTML = "";
+      mcpPanel.textContent = "—";
+      statsPanel.textContent = "—";
+      const session = await createLiveSession(50, true);
+      sessionId = session.id;
+      totalTurns = session.total_turns;
+      progressEl.textContent = `0/${totalTurns}`;
+      btnNext.disabled = false;
+      statusEl.textContent = "Session MCP live — avancez tour par tour";
+      statusEl.className = "pill ok";
+    }
+
+    async function nextTurn() {
+      const event = await stepLiveSession(sessionId);
+      progressEl.textContent = `${event.session.index}/${event.session.total_turns}`;
+
+      if (event.role === "user" && event.assistant_reply) {
+        appendChatMessage(chatLog, {
+          turn: event.turn,
+          role: "user",
+          content: event.content,
+          source: "live",
+        });
+        appendChatMessage(chatLog, {
+          turn: event.turn,
+          role: "assistant",
+          content: event.assistant_reply,
+          source: "mcp",
+        });
+        mcpPanel.textContent = JSON.stringify(
+          {
+            summary: event.mcp?.summary_excerpt,
+            search: event.mcp?.search_hits,
+            memory_tokens: event.memory_turn_tokens,
+            naive_cumulative: event.naive_cumulative,
+            memory_cumulative: event.memory_cumulative,
+          },
+          null,
+          2
+        );
+      } else {
+        appendChatMessage(chatLog, {
+          turn: event.turn,
+          role: event.role,
+          content: event.content,
+          source: "script",
+        });
+      }
+
+      if (event.stats) {
+        statsPanel.textContent = JSON.stringify(event.stats, null, 2);
+      }
+
+      if (event.done) {
+        btnNext.disabled = true;
+        clearInterval(autoTimer);
+        statusEl.textContent = `Fin — ${event.quality?.passed}/${event.quality?.total} pièges OK`;
+        statusEl.className = "pill ok";
+        mcpPanel.textContent = JSON.stringify(
+          { quality: event.quality, summary: event.summary?.summary?.slice(0, 300) },
+          null,
+          2
+        );
+      }
+    }
+
+    btnNext.onclick = () => nextTurn().catch((e) => {
+      statusEl.textContent = e.message;
+      statusEl.className = "pill warn";
+    });
+
+    btnAuto.onclick = () => {
+      if (autoTimer) {
+        clearInterval(autoTimer);
+        autoTimer = null;
+        btnAuto.textContent = "Auto-play";
+        return;
+      }
+      btnAuto.textContent = "Stop auto";
+      autoTimer = setInterval(() => {
+        if (btnNext.disabled) {
+          clearInterval(autoTimer);
+          autoTimer = null;
+          btnAuto.textContent = "Auto-play";
+          return;
+        }
+        btnNext.click();
+      }, 500);
+    };
+
+    btnNew.onclick = () => newSession().catch((e) => {
+      statusEl.textContent = "Serveur requis : python dashboard/server.py";
+      statusEl.className = "pill warn";
+    });
+
+    newSession().catch(() => {
+      statusEl.textContent = "Serveur requis : python dashboard/server.py";
+      statusEl.className = "pill warn";
+      btnNext.disabled = true;
+    });
+  </script>
+</body>
+</html>

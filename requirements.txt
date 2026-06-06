@@ -1,5 +1,10 @@
 mcp>=1.0.0
 tiktoken>=0.7.0
+sentence-transformers>=2.7
+faiss-cpu>=1.8
+numpy>=1.26
+openai>=1.40.0
+python-dotenv>=1.0.0
 
 # Dev (CI installe aussi via pyproject)
 pytest>=8.0.0

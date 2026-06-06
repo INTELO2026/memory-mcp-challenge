@@ -3,79 +3,282 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memory MCP — Benchmark Dashboard</title>
-  <style>
-    :root { --red: #ef4444; --green: #22c55e; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
-    h1 { margin-bottom: 0.5rem; }
-    .subtitle { color: #94a3b8; margin-bottom: 2rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; }
-    .card h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 1rem; }
-    .metric { font-size: 2.5rem; font-weight: 700; }
-    .metric.naive { color: var(--red); }
-    .metric.memory { color: var(--green); }
-    .savings { margin-top: 2rem; text-align: center; font-size: 1.5rem; }
-    .savings span { color: var(--green); font-weight: 700; }
-    canvas { width: 100%; height: 200px; margin-top: 1rem; }
-    .quality { margin-top: 1.5rem; }
-    .bar { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
-    .bar-fill { height: 100%; background: var(--green); transition: width 0.5s; }
-    pre { background: #0f172a; padding: 1rem; border-radius: 8px; overflow: auto; font-size: 0.8rem; margin-top: 1rem; }
-  </style>
+  <title>MemBridge — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script type="module" src="ui.js"></script>
 </head>
-<body>
-  <h1>Memory MCP Benchmark</h1>
-  <p class="subtitle">Hackathon INTELO2026 — Naïf vs Mémoire</p>
+<body class="page-benchmark">
+  <div class="ambient" aria-hidden="true">
+    <div class="grid-overlay"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1>MemBridge</h1>
+          <p>INTELO2026 — Finale</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="live.html">Arena live</a>
+        <a href="mcp.html">Console MCP</a>
+        <a href="index.html" class="active">Benchmark</a>
+        <a href="bonus.html">Bonus</a>
+        <a href="demo.html">Atelier</a>
+        <a href="#traps">Pièges</a>
+      </nav>
+      <div class="sidebar-footer">
+        Mémoire MCP · −70 % tokens · qualité maintenue
+      </div>
+    </aside>
 
-  <div class="grid">
-    <div class="card">
-      <h2>Mode naïf (tout l'historique)</h2>
-      <div class="metric naive" id="naive-tokens">—</div>
-      <p>tokens cumulés</p>
-    </div>
-    <div class="card">
-      <h2>Mode mémoire MCP</h2>
-      <div class="metric memory" id="memory-tokens">—</div>
-      <p>tokens cumulés</p>
-    </div>
+    <main class="main">
+      <section class="hero reveal visible">
+        <p class="hero-eyebrow">Axe coût & qualité</p>
+        <h2>La mémoire qui aplatit la courbe</h2>
+        <p>
+          50 tours de support client — le mode naïf explose quadratiquement,
+          MemBridge reste stable via store, search et summarize.
+        </p>
+        <div class="status-bar">
+          <span class="pill live" id="live-status">En attente de données…</span>
+          <span class="pill" id="target-pill">Objectif finale : ≥ 70 %</span>
+          <span class="pill" id="quality-pill">Qualité pièges : —</span>
+        </div>
+      </section>
+
+      <div class="grid-2 reveal reveal-delay-1">
+        <div class="card card-accent-coral">
+          <h3>Mode naïf</h3>
+          <div class="metric naive" id="naive-tokens">—</div>
+          <p class="metric-label">tokens cumulés — historique complet</p>
+        </div>
+        <div class="card card-accent-sage">
+          <h3>Mode MemBridge</h3>
+          <div class="metric memory" id="memory-tokens">—</div>
+          <p class="metric-label">tokens cumulés — résumé + search</p>
+        </div>
+      </div>
+
+      <div class="savings-banner reveal reveal-delay-2">
+        Économie mesurée :
+        <strong id="savings">—</strong>
+        &nbsp;·&nbsp;
+        <strong id="cost-eur">—</strong> économisés
+        <div class="savings-sub" id="price-note"></div>
+      </div>
+
+      <div class="card">
+        <h3>Courbes cumulées par tour</h3>
+        <canvas id="token-chart"></canvas>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <h3>Facteur de croissance</h3>
+          <div class="metric" id="growth-naive">—</div>
+          <p class="metric-label">naïf (dernier / premier tour)</p>
+        </div>
+        <div class="card">
+          <h3>Facteur MemBridge</h3>
+          <div class="metric memory" id="growth-memory">—</div>
+          <p class="metric-label">mémoire MCP (quasi plat)</p>
+        </div>
+        <div class="card">
+          <h3>Compression mémoire</h3>
+          <div class="metric memory" id="compression">—</div>
+          <p class="metric-label">ratio contenu stocké / brut</p>
+        </div>
+      </div>
+
+      <h2 class="section-title" id="traps">Qualité — deux axes (§4 sujet)</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Mode naïf — historique complet</h3>
+          <p>
+            <strong id="naive-quality-score">—</strong> /
+            <strong id="naive-quality-total">—</strong>
+            (<span id="naive-quality-pct">—</span> %)
+          </p>
+          <div class="bar"><div class="bar-fill coral" id="naive-quality-bar" style="width:0%"></div></div>
+        </div>
+        <div class="card">
+          <h3>Mode MemBridge — memory_search</h3>
+          <p>
+            <strong id="quality-score">—</strong> /
+            <strong id="quality-total">—</strong>
+            (<span id="quality-pct">—</span> %)
+          </p>
+          <div class="bar"><div class="bar-fill" id="quality-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div id="trap-table" style="margin-top:0.5rem"></div>
+      </div>
+
+      <h2 class="section-title" id="objectives">Objectifs finale (§2)</h2>
+      <div class="grid-2" id="objectives-grid">
+        <div class="card"><h3>Coût</h3><p id="obj-cost">—</p></div>
+        <div class="card"><h3>Qualité maintenue</h3><p id="obj-quality">—</p></div>
+      </div>
+
+      <h2 class="section-title" id="bonus">Bonus implémentés (§10)</h2>
+      <div class="feature-grid" id="bonus-grid"></div>
+
+      <h2 class="section-title" id="memory">memory_stats()</h2>
+      <div class="card">
+        <pre id="mcp-stats">—</pre>
+      </div>
+
+      <h2 class="section-title" id="commands">Lancer la démo complète (§3 + §11)</h2>
+      <div class="card commands">
+        <div class="command-row"><span>All-in-one</span> python -m demo.presentation</div>
+        <div class="command-row"><span>Jury live</span> python dashboard/server.py --open → /dashboard/live.html</div>
+        <div class="command-row"><span>MCP</span> python -m memory_mcp.server</div>
+        <p class="hint" style="margin-top:0.5rem">
+          Présentation 5 min : graphe avant/après + question piège + bonus multi-agent.
+        </p>
+      </div>
+    </main>
   </div>
 
-  <div class="savings">
-    Économie : <span id="savings">—</span>
-  </div>
+  <script type="module">
+    import {
+      bindDashboard,
+      formatNumber,
+      normalizeQuality,
+      renderTokenChart,
+      renderTrapTable,
+    } from "./app.js";
+    import { animateMetric } from "./ui.js";
 
-  <div class="card quality">
-    <h2>Qualité — questions pièges</h2>
-    <p><span id="quality-score">—</span> / <span id="quality-total">—</span> réussies</p>
-    <div class="bar"><div class="bar-fill" id="quality-bar" style="width:0%"></div></div>
-  </div>
+    const bonusLabels = {
+      hierarchy_ranking: "Hiérarchie pertinence",
+      intelligent_forgetting: "Oubli intelligent",
+      shared_memory_ready: "Mémoire partagée",
+      persistence_ready: "Persistance sessions",
+    };
 
-  <div class="card">
-    <h2>Rapport JSON</h2>
-    <pre id="report">Chargez benchmark/results/report.json ou lancez python -m benchmark.harness > report.json</pre>
-  </div>
-
-  <script>
-    // TODO équipe : brancher sur les résultats live du benchmark
-    async function loadReport() {
-      try {
-        const res = await fetch('../benchmark/results/report.json');
-        const data = await res.json();
-        document.getElementById('naive-tokens').textContent = data.naive.total_tokens.toLocaleString();
-        document.getElementById('memory-tokens').textContent = data.memory.total_tokens.toLocaleString();
-        document.getElementById('savings').textContent = `-${data.savings_pct}% tokens`;
-        document.getElementById('quality-score').textContent = data.quality.passed;
-        document.getElementById('quality-total').textContent = data.quality.total;
-        document.getElementById('quality-bar').style.width = data.quality.score_pct + '%';
-        document.getElementById('report').textContent = JSON.stringify(data, null, 2);
-      } catch {
-        document.getElementById('report').textContent =
-          'Aucun rapport trouvé. Exécutez : python -m benchmark.harness';
+    function renderBonus(bonus) {
+      const grid = document.getElementById("bonus-grid");
+      if (!bonus) {
+        grid.innerHTML = '<p class="hint">Lancez le benchmark pour afficher les bonus.</p>';
+        return;
       }
+      grid.innerHTML = Object.entries(bonusLabels)
+        .map(([key, label]) => {
+          const ok = bonus[key];
+          return `<div class="feature-card"><h4>${label}</h4><p class="status">${ok ? "Actif" : "—"}</p></div>`;
+        })
+        .join("");
     }
-    loadReport();
+
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    }
+
+    bindDashboard({
+      onUpdate(data, path) {
+        if (!data) {
+          setText("live-status", "Aucun rapport — lancez python -m benchmark.harness");
+          return;
+        }
+
+        animateMetric(
+          document.getElementById("naive-tokens"),
+          data.naive.total_tokens,
+          formatNumber
+        );
+        animateMetric(
+          document.getElementById("memory-tokens"),
+          data.memory.total_tokens,
+          formatNumber
+        );
+        setText(
+          "savings",
+          `-${data.savings_pct}% (${formatNumber(data.saved_tokens)} tokens)`
+        );
+        setText("cost-eur", `${(data.cost_saved_eur || 0).toFixed(4)} €`);
+        setText(
+          "price-note",
+          `Tarif ref. : ${data.token_price_eur_per_m || 0.15} € / 1M tokens input`
+        );
+
+        const q = normalizeQuality(data);
+        const memQ = q.memory || { passed: 0, total: 0, score_pct: 0 };
+        const naiveQ = q.naive || { passed: 0, total: 0, score_pct: 0 };
+
+        setText("quality-score", memQ.passed);
+        setText("quality-total", memQ.total);
+        setText("quality-pct", memQ.score_pct);
+        document.getElementById("quality-bar").style.width = `${memQ.score_pct}%`;
+
+        setText("naive-quality-score", naiveQ.passed);
+        setText("naive-quality-total", naiveQ.total);
+        setText("naive-quality-pct", naiveQ.score_pct);
+        document.getElementById("naive-quality-bar").style.width = `${naiveQ.score_pct}%`;
+
+        const targetOk = data.savings_pct >= 70;
+        const targetEl = document.getElementById("target-pill");
+        targetEl.textContent = targetOk
+          ? `Objectif ≥ 70 % : atteint (${data.savings_pct} %)`
+          : `Objectif ≥ 70 % : ${data.savings_pct} %`;
+        targetEl.className = `pill ${targetOk ? "ok" : "warn"}`;
+
+        const qualityEl = document.getElementById("quality-pill");
+        qualityEl.textContent = `MemBridge pièges : ${memQ.passed}/${memQ.total}`;
+        qualityEl.className = `pill ${memQ.passed >= 8 ? "ok" : "warn"}`;
+
+        const objectives = data.objectives || {};
+        setText(
+          "obj-cost",
+          objectives.savings_met
+            ? `≥ 70 % atteint (${data.savings_pct} %) — ${formatNumber(data.saved_tokens)} tokens`
+            : `${data.savings_pct} % (cible 70 %)`
+        );
+        setText(
+          "obj-quality",
+          objectives.memory_quality_met
+            ? `Qualité maintenue (${memQ.score_pct} % pièges MemBridge)`
+            : `${memQ.score_pct} % (cible 80 %)`
+        );
+
+        renderBonus(data.bonus);
+
+        setText(
+          "growth-naive",
+          `${(data.naive.growth_factor || 0).toFixed(1)}×`
+        );
+        setText(
+          "growth-memory",
+          `${(data.memory.growth_factor || 0).toFixed(1)}×`
+        );
+        setText(
+          "compression",
+          `${(data.memory.compression_ratio || 0).toFixed(2)}×`
+        );
+
+        document.getElementById("mcp-stats").textContent = JSON.stringify(
+          data.memory.stats,
+          null,
+          2
+        );
+        setText(
+          "live-status",
+          `Live — ${new Date().toLocaleTimeString("fr-FR")} (${path})`
+        );
+
+        renderTokenChart("token-chart", data);
+        renderTrapTable("trap-table", memQ);
+      },
+    });
   </script>
 </body>
 </html>

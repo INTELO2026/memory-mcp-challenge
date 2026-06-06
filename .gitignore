@@ -15,6 +15,14 @@ env/
 *.sqlite
 .env
 .env.*
+.env.local
+secrets.json
+credentials.json
+*.pem
+*.key
+
+# Clés / tokens accidentels
+**/api_keys.txt
 
 # IDE
 .idea/
@@ -23,6 +31,7 @@ env/
 
 # Benchmark outputs
 benchmark/results/
+demo/results/
 *.json.bak
 
 # Dépôt privé eval (ne pas publier dans le repo public)
