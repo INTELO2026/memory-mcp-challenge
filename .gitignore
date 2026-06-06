@@ -28,6 +28,23 @@ benchmark/results/
 # Dépôt privé eval (ne pas publier dans le repo public)
 eval-private/
 
+# Node / Next.js (frontend)
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+frontend/.env*.local
+
+# Modèles & cache HuggingFace (jamais committer les poids de modèles)
+.cache/
+hf_cache/
+models/
+
+# Probes / scratch temporaires
+_probe*.py
+_*_out.txt
+
 # OS
 .DS_Store
 Thumbs.db

@@ -7,6 +7,8 @@ requires-python = ">=3.11"
 dependencies = [
     "mcp>=1.0.0",
     "tiktoken>=0.7.0",
+    "google-genai>=1.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -14,6 +16,15 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "ruff>=0.8.0",
+]
+# Filet hors-ligne / CI sans clé : embeddings locaux (lourd, jamais requis pour la démo Gemini).
+local = [
+    "sentence-transformers>=3.0.0",
+]
+# Backend de la plateforme web (dashboard live).
+web = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
 ]
 
 [project.scripts]
