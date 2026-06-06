@@ -12,7 +12,10 @@ from memory_mcp.embeddings import cosine_similarity, embed
 
 MIN_SIMILARITY = 0.01
 _NOISE_MARKERS = re.compile(r"\b(bruit|hors-sujet|noise|football tennis météo)\b", re.IGNORECASE)
-_FILLER_MARKERS = re.compile(r"précision contextuelle pour le tour|Message détaillé numéro", re.IGNORECASE)
+_FILLER_MARKERS = re.compile(
+    r"précision contextuelle pour le tour|Message détaillé numéro",
+    re.IGNORECASE,
+)
 _EMAIL = re.compile(r"[\w.+-]+@[\w.-]+\.\w+", re.IGNORECASE)
 _CONTRACT = re.compile(r"CTR-\d{4}-\d+", re.IGNORECASE)
 _AMOUNT = re.compile(r"\d+[,.]\d{2}\s*€")
@@ -51,13 +54,21 @@ def _rank_score(base_score: float, query: str, content: str, tags: list[str]) ->
     ):
         score *= 1.1
     q = query.lower()
-    if _EMAIL.search(content) and any(t in q for t in ("contact", "email", "coordonn", "électron", "mail")):
+    if _EMAIL.search(content) and any(
+        t in q for t in ("contact", "email", "coordonn", "électron", "mail")
+    ):
         score *= 1.35
-    if _CONTRACT.search(content) and any(t in q for t in ("contrat", "référence", "reference", "dossier", "légal")):
+    if _CONTRACT.search(content) and any(
+        t in q for t in ("contrat", "référence", "reference", "dossier", "légal")
+    ):
         score *= 1.35
-    if _AMOUNT.search(content) and any(t in q for t in ("facture", "tarif", "écart", "ecart", "prix", "montant")):
+    if _AMOUNT.search(content) and any(
+        t in q for t in ("facture", "tarif", "écart", "ecart", "prix", "montant")
+    ):
         score *= 1.35
-    if _DATE.search(content) and any(t in q for t in ("incident", "bug", "mobile", "date", "signalé", "signale")):
+    if _DATE.search(content) and any(
+        t in q for t in ("incident", "bug", "mobile", "date", "signalé", "signale")
+    ):
         score *= 1.35
     return score
 
