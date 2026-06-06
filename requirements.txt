@@ -1,5 +1,7 @@
 mcp>=1.0.0
 tiktoken>=0.7.0
+sentence-transformers>=3.0.0
+numpy>=1.26.0
 
 # Dev (CI installe aussi via pyproject)
 pytest>=8.0.0
