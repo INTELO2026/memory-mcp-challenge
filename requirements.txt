@@ -1,7 +1,19 @@
+# Dépendances cœur (démo légère, embeddings + agent Gemini)
 mcp>=1.0.0
 tiktoken>=0.7.0
+google-genai>=1.0.0
+python-dotenv>=1.0.0
 
-# Dev (CI installe aussi via pyproject)
+# Dev
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
 ruff>=0.8.0
+
+# Filet hors-ligne / CI sans clé (lourd, optionnel) :
+#   pip install -e ".[local]"
+# sentence-transformers>=3.0.0
+
+# Backend plateforme web :
+#   pip install -e ".[web]"
+# fastapi>=0.110.0
+# uvicorn[standard]>=0.27.0

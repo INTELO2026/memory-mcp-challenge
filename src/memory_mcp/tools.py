@@ -1,9 +1,21 @@
-"""Implémentation des 4 outils MCP : store, search, summarize, stats."""
+"""Implémentation des outils MCP de MemBridge.
+
+Outils principaux (exigés par le défi) :
+    - memory_store     : enregistre un fragment + métadonnées (embedding, importance…)
+    - memory_search    : recherche sémantique par similarité
+    - memory_summarize : résumé compressé conservant les faits
+    - memory_stats     : métriques tokens (axe coût)
+
+Outils bonus (différenciation) :
+    - memory_rank      : hiérarchie de pertinence (importance × récence × fréquence)
+    - memory_forget    : oubli intelligent des doublons
+"""
 
 from __future__ import annotations
 
 from memory_mcp.stats import count_tokens, get_stats
 from memory_mcp.storage import MemoryStore
+from memory_mcp.summarize import DEFAULT_MAX_CHARS, summarize_entries
 
 
 class MemoryTools:
@@ -19,15 +31,34 @@ class MemoryTools:
         stats.add_input(count_tokens(content))
 
         memory_id = self.store.store(content=content, tags=tags, session=session, turn=turn)
-        return {"id": memory_id, "stored": True, "tags": tags or []}
+        importance = 0.0
+        # Récupère l'importance calculée pour le retour (utile au dashboard).
+        for entry in self.store.list_session(session):
+            if entry.id == memory_id:
+                importance = entry.importance
+                break
+        return {
+            "id": memory_id,
+            "stored": True,
+            "tags": tags or [],
+            "importance": round(importance, 4),
+        }
 
-    def memory_search(self, query: str, top_k: int = 5, session: str | None = None) -> dict:
+    def memory_search(
+        self,
+        query: str,
+        top_k: int = 5,
+        session: str | None = None,
+        use_hierarchy: bool = False,
+    ) -> dict:
         """Recherche sémantique dans la mémoire."""
         stats = get_stats()
         stats.search_calls += 1
         stats.add_input(count_tokens(query))
 
-        hits = self.store.search(query=query, top_k=top_k, session=session)
+        hits = self.store.search(
+            query=query, top_k=top_k, session=session, use_hierarchy=use_hierarchy
+        )
         results = [
             {
                 "id": h.id,
@@ -35,35 +66,57 @@ class MemoryTools:
                 "tags": h.tags,
                 "turn": h.turn,
                 "score": round(h.score, 6),
+                "importance": round(h.importance, 4),
             }
             for h in hits
         ]
         stats.add_output(count_tokens(str(results)))
         return {"results": results, "count": len(results)}
 
-    def memory_summarize(self, session: str = "default", max_chars: int = 500) -> dict:
-        """Résume compressé de l'historique d'une session."""
+    def memory_summarize(
+        self, session: str = "default", max_chars: int = DEFAULT_MAX_CHARS
+    ) -> dict:
+        """Résumé compressé de l'historique d'une session (conserve les faits saillants)."""
         stats = get_stats()
         stats.summarize_calls += 1
 
         entries = self.store.list_session(session)
         if not entries:
-            return {"summary": "", "source_turns": 0, "compressed_chars": 0}
+            return {"summary": "", "source_turns": 0, "compressed_chars": 0, "facts_kept": 0}
 
-        # TODO équipe : remplacer par un vrai résumé LLM
-        parts = [f"[t{e.turn}] {e.content[:80]}" for e in entries]
-        summary = " | ".join(parts)
-        if len(summary) > max_chars:
-            summary = summary[: max_chars - 3] + "..."
+        result = summarize_entries(entries, max_chars=max_chars)
 
         stats.add_input(count_tokens("".join(e.content for e in entries)))
-        stats.add_output(count_tokens(summary))
-        return {
-            "summary": summary,
-            "source_turns": len(entries),
-            "compressed_chars": len(summary),
-        }
+        stats.add_output(count_tokens(result["summary"]))
+        return result
 
     def memory_stats(self) -> dict:
         """Retourne les statistiques de consommation tokens."""
-        return get_stats().to_dict()
+        stats = get_stats().to_dict()
+        stats["entries"] = self.store.count()
+        stats["sessions"] = len(self.store.sessions())
+        return stats
+
+    # --------------------------------------------------------------- bonus ---
+    def memory_rank(self, session: str = "default", top_k: int = 10) -> dict:
+        """Hiérarchie de pertinence : souvenirs triés par importance × récence × fréquence."""
+        ranked = self.store.ranked_session(session, top_k=top_k)
+        return {
+            "results": [
+                {
+                    "id": e.id,
+                    "content": e.content,
+                    "turn": e.turn,
+                    "importance": round(e.importance, 4),
+                    "access_count": e.access_count,
+                    "rank_score": e.rank_score,
+                }
+                for e in ranked
+            ],
+            "count": len(ranked),
+        }
+
+    def memory_forget(self, session: str = "default", similarity_threshold: float = 0.93) -> dict:
+        """Oubli intelligent : purge les souvenirs quasi-dupliqués."""
+        removed = self.store.forget_redundant(session, similarity_threshold=similarity_threshold)
+        return {"forgotten": removed, "remaining": self.store.count(session)}

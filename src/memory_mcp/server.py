@@ -69,6 +69,36 @@ async def list_tools() -> list[Tool]:
             description="Retourne les statistiques de consommation de tokens.",
             inputSchema={"type": "object", "properties": {}},
         ),
+        Tool(
+            name="memory_rank",
+            description="Hiérarchie de pertinence : tri par importance, récence, fréquence.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session": {"type": "string", "description": "ID de session"},
+                    "top_k": {
+                        "type": "integer",
+                        "description": "Nombre de résultats",
+                        "default": 10,
+                    },
+                },
+            },
+        ),
+        Tool(
+            name="memory_forget",
+            description="Oubli intelligent : purge les souvenirs quasi-dupliqués d'une session.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session": {"type": "string", "description": "ID de session"},
+                    "similarity_threshold": {
+                        "type": "number",
+                        "description": "Seuil de similarité pour considérer un doublon",
+                        "default": 0.93,
+                    },
+                },
+            },
+        ),
     ]
 
 
@@ -94,6 +124,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         )
     elif name == "memory_stats":
         result = tools_handler.memory_stats()
+    elif name == "memory_rank":
+        result = tools_handler.memory_rank(
+            session=arguments.get("session", "default"),
+            top_k=arguments.get("top_k", 10),
+        )
+    elif name == "memory_forget":
+        result = tools_handler.memory_forget(
+            session=arguments.get("session", "default"),
+            similarity_threshold=arguments.get("similarity_threshold", 0.93),
+        )
     else:
         raise ValueError(f"Outil inconnu : {name}")
 
