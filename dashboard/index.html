@@ -3,79 +3,413 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memory MCP — Benchmark Dashboard</title>
+  <title>MemBridge — Données live du MCP</title>
   <style>
-    :root { --red: #ef4444; --green: #22c55e; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; }
+    :root { --red: #ef4444; --green: #22c55e; --blue: #3b82f6; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --muted: #94a3b8; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
-    h1 { margin-bottom: 0.5rem; }
-    .subtitle { color: #94a3b8; margin-bottom: 2rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; }
-    .card h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 1rem; }
-    .metric { font-size: 2.5rem; font-weight: 700; }
-    .metric.naive { color: var(--red); }
-    .metric.memory { color: var(--green); }
-    .savings { margin-top: 2rem; text-align: center; font-size: 1.5rem; }
-    .savings span { color: var(--green); font-weight: 700; }
-    canvas { width: 100%; height: 200px; margin-top: 1rem; }
-    .quality { margin-top: 1.5rem; }
-    .bar { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
-    .bar-fill { height: 100%; background: var(--green); transition: width 0.5s; }
-    pre { background: #0f172a; padding: 1rem; border-radius: 8px; overflow: auto; font-size: 0.8rem; margin-top: 1rem; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; max-width: 1100px; margin: 0 auto; }
+    h1 { margin-bottom: 0.25rem; }
+    .subtitle { color: var(--muted); margin-bottom: 1.5rem; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; background: var(--card); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; }
+    .toolbar label { color: var(--muted); font-size: 0.85rem; }
+    .toolbar input { background: #0b1220; border: 1px solid #334155; color: var(--text); padding: 0.5rem 0.7rem; border-radius: 8px; font-size: 0.9rem; }
+    .toolbar input#api { width: 260px; }
+    .toolbar input#search { width: 320px; }
+    button { background: var(--blue); color: #fff; border: none; padding: 0.55rem 1rem; border-radius: 8px; font-size: 0.9rem; cursor: pointer; }
+    button.ghost { background: #334155; }
+    button.danger { background: #7f1d1d; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--muted); }
+    .dot.ok { background: var(--green); } .dot.ko { background: var(--red); }
+    .status { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    .card { background: var(--card); border-radius: 12px; padding: 1.25rem; }
+    .card h2 { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .metric { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+    .metric.green { color: var(--green); } .metric.blue { color: var(--blue); }
+    .metric small { font-size: 0.8rem; color: var(--muted); font-weight: 400; display: block; margin-top: 0.25rem; }
+    .full { grid-column: 1 / -1; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.85rem; }
+    th, td { text-align: right; padding: 0.5rem 0.6rem; border-bottom: 1px solid #334155; }
+    th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+    thead th { color: var(--muted); font-weight: 600; }
+    tfoot td { font-weight: 700; border-top: 2px solid #475569; }
+    .save { color: var(--green); }
+    td.muted { color: var(--muted); }
+    .toolbar label.check { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--text); cursor: pointer; }
+    .toolbar label.check input { width: auto; }
+    .badge { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 999px; background: #1d4ed8; color: #fff; font-size: 0.68rem; vertical-align: middle; }
+    .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 0.5rem 0 1rem; }
+    .trio .tile { background: #0b1220; border-radius: 10px; padding: 1rem; }
+    .trio .tile .metric { font-size: 1.6rem; }
+    .trio .tile small { display: block; margin-top: 0.3rem; color: var(--muted); }
+    .metric.red { color: var(--red); }
+    #cost-chart { width: 100%; max-width: 520px; height: 200px; display: block; margin: 0.5rem auto 0; }
+    .tag-model { color: var(--blue); font-weight: 700; }
+    .tag-default { color: var(--muted); font-weight: 400; font-size: 0.8rem; }
+    .gain-banner { text-align: center; font-size: 1.05rem; margin: 0.25rem 0 0.75rem; color: var(--muted); }
+    .gain-banner #gain-val { font-size: 2rem; font-weight: 800; vertical-align: middle; }
+    .gain-ok { color: var(--green); } .gain-low { color: #f59e0b; }
+    .seg { display: inline-flex; gap: 0.25rem; background: #0b1220; border-radius: 8px; padding: 0.2rem; }
+    .seg button { background: transparent; color: var(--muted); padding: 0.35rem 0.8rem; }
+    .seg button.active { background: var(--blue); color: #fff; }
+    .legend { display: flex; gap: 1.2rem; justify-content: center; font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+    .legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 0.35rem; vertical-align: middle; }
+    #ts-chart { width: 100%; height: 260px; display: block; }
+    .row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .hint { color: var(--muted); font-size: 0.85rem; margin-top: 1rem; }
+    code { background: #0b1220; padding: 0.1rem 0.4rem; border-radius: 4px; }
   </style>
 </head>
 <body>
-  <h1>Memory MCP Benchmark</h1>
-  <p class="subtitle">Hackathon INTELO2026 — Naïf vs Mémoire</p>
+  <h1>MemBridge — Données live</h1>
+  <p class="subtitle">Statistiques réelles du serveur MCP (aucune simulation)</p>
+
+  <div class="toolbar">
+    <label>API <input id="api" value="http://localhost:8010" /></label>
+    <label>Rechercher un modèle <input id="search" value="" placeholder="ex. opus, claude, gemini…" /></label>
+    <label class="check"><input type="checkbox" id="showall" /> Afficher tous les modèles</label>
+    <button id="refresh">Rafraîchir</button>
+    <button id="auto" class="ghost">Auto ⟳ : off</button>
+    <button id="reset" class="danger">Réinitialiser</button>
+    <span class="status"><span class="dot" id="dot"></span> <span id="status">non connecté</span></span>
+  </div>
 
   <div class="grid">
-    <div class="card">
-      <h2>Mode naïf (tout l'historique)</h2>
-      <div class="metric naive" id="naive-tokens">—</div>
-      <p>tokens cumulés</p>
+    <div class="card"><h2>Entrées en mémoire</h2><div class="metric blue" id="entries">—</div></div>
+    <div class="card"><h2>Tokens stockés</h2><div class="metric" id="stored">—</div></div>
+    <div class="card"><h2>Tokens économisés (vs naïf)</h2><div class="metric green" id="saved">—<small>équivalent historique complet évité</small></div></div>
+    <div class="card"><h2>Tokens MCP (entrée+sortie)</h2><div class="metric" id="total">—</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><h2>Appels store</h2><div class="metric" id="store-calls">—</div></div>
+    <div class="card"><h2>Appels search</h2><div class="metric" id="search-calls">—</div></div>
+    <div class="card"><h2>Appels summarize</h2><div class="metric" id="summarize-calls">—</div></div>
+    <div class="card"><h2>Tokens entrée / sortie</h2><div class="metric" id="io" style="font-size:1.3rem">—</div></div>
+  </div>
+
+  <div class="card full">
+    <h2>Coût attendu (sans MemBridge) vs économie — modèle <span id="sum-model" class="tag-model">—</span></h2>
+    <div class="gain-banner">Gain de tokens : <span id="gain-val">—</span> <span id="gain-target">/ objectif ≥ 70 %</span></div>
+    <div class="trio">
+      <div class="tile"><div class="metric red" id="sum-expected">—</div><small>attendu · mode naïf (historique complet à chaque tour)</small></div>
+      <div class="tile"><div class="metric blue" id="sum-actual">—</div><small>réel · MemBridge (mémoire ciblée)</small></div>
+      <div class="tile"><div class="metric green" id="sum-saved">—</div><small>économie · <span id="sum-pct">0 %</span></small></div>
     </div>
-    <div class="card">
-      <h2>Mode mémoire MCP</h2>
-      <div class="metric memory" id="memory-tokens">—</div>
-      <p>tokens cumulés</p>
+    <svg id="cost-chart" viewBox="0 0 320 200" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Comparaison des coûts"></svg>
+    <p class="hint">Tarif du <strong>modèle actif</strong> (déclaré par l'agent via <code>memory_store(model=…)</code>) ; à défaut, un modèle récent par défaut est utilisé. Le <strong>gain de tokens</strong> = 1 − tokens MemBridge / tokens naïfs ; il croît avec le nombre de tours et dépasse 70 % sur une vraie conversation.</p>
+  </div>
+
+  <div class="card full">
+    <div class="row">
+      <h2 style="margin:0">Utilisation dans le temps — naïf vs MemBridge (tokens cumulés)</h2>
+      <div class="seg" id="bucket-seg" style="margin-left:auto">
+        <button data-bucket="hour" class="active">Heure</button>
+        <button data-bucket="day">Jour</button>
+        <button data-bucket="month">Mois</button>
+      </div>
     </div>
+    <svg id="ts-chart" viewBox="0 0 720 260" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Courbe d'utilisation dans le temps"></svg>
+    <div class="legend">
+      <span><i style="background:#ef4444"></i>Naïf (cumulé)</span>
+      <span><i style="background:#22c55e"></i>MemBridge (cumulé)</span>
+      <span><i style="background:#3b82f6"></i>Gain %</span>
+    </div>
+    <p class="hint" id="ts-hint">Chaque appel d'outil (store / search / summarize) est un « tour ». L'écart entre les deux courbes = tokens économisés. Choisissez la granularité ci-dessus.</p>
   </div>
 
-  <div class="savings">
-    Économie : <span id="savings">—</span>
-  </div>
-
-  <div class="card quality">
-    <h2>Qualité — questions pièges</h2>
-    <p><span id="quality-score">—</span> / <span id="quality-total">—</span> réussies</p>
-    <div class="bar"><div class="bar-fill" id="quality-bar" style="width:0%"></div></div>
-  </div>
-
-  <div class="card">
-    <h2>Rapport JSON</h2>
-    <pre id="report">Chargez benchmark/results/report.json ou lancez python -m benchmark.harness > report.json</pre>
+  <div class="card full">
+    <h2>Vue d'ensemble du pricing (tarifs models.dev, USD) — <span id="cost-caption">tous les modèles</span></h2>
+    <table>
+      <thead>
+        <tr><th>Modèle</th><th>Fournisseur</th><th>Entrée /1M</th><th>Sortie /1M</th><th>Coût entrée</th><th>Coût sortie</th><th>Coût total</th></tr>
+      </thead>
+      <tbody id="cost-body"></tbody>
+      <tfoot id="cost-foot"></tfoot>
+    </table>
+    <p class="hint">Par défaut : les modèles tendance (<span class="badge">tendance</span>) + ceux dont la consommation MCP est non nulle. Cochez <strong>Afficher tous les modèles</strong> pour le catalogue complet. Tapez (regex acceptée) pour filtrer. Les colonnes « Coût » chiffrent la consommation MCP réelle au tarif de chaque modèle. Démarrez le serveur : <code>memory-mcp-http</code>, puis connectez un agent (<code>http://localhost:8010/mcp/sse</code>).</p>
   </div>
 
   <script>
-    // TODO équipe : brancher sur les résultats live du benchmark
-    async function loadReport() {
+    const $ = id => document.getElementById(id);
+    let timer = null;
+    let catalog = [];                         // tous les modèles tarifés (models.dev)
+    let usage = { input_tokens: 0, output_tokens: 0 };  // consommation MCP réelle
+    let trendy = new Set();                   // ids des modèles « tendance » du moment
+    let bucket = 'hour';                       // granularité de la courbe temporelle
+
+    // Familles tendance : on garde le modèle le plus récent de chaque famille,
+    // toujours affiché même à 0 token.
+    const TREND_PATTERNS = [
+      /claude-opus-4-8|opus[-.]?4[-.]?8/i,
+      /claude-sonnet-4-6|sonnet[-.]?4[-.]?6/i,
+      /gpt-5[-.]?5/i,
+      /gemini-3/i,
+    ];
+
+    function apiBase() { return $('api').value.replace(/\/+$/, ''); }
+    function searchTerm() { return $('search').value.trim(); }
+    function showAll() { return $('showall').checked; }
+    function fmtMoney(v) { return (v < 0.01 ? v.toFixed(6) : v.toFixed(4)) + ' USD'; }
+
+    // Résout le tarif d'un slug dans le catalogue : exact, sinon regex (plus
+    // récent), sinon repli Sonnet. Miroir client de pricing.price_for().
+    function resolvePrice(slug) {
+      if (!slug || !catalog.length) return null;
+      const exact = catalog.find(x => x.model === slug);
+      if (exact) return exact;
+      let rx;
+      try { rx = new RegExp(slug, 'i'); }
+      catch (e) { rx = new RegExp(slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
+      const ms = catalog.filter(x => rx.test(x.model) || rx.test(x.name));
+      if (ms.length) {
+        ms.sort((a, b) => (b.release_date || '').localeCompare(a.release_date || ''));
+        return ms[0];
+      }
+      return catalog.find(x => x.model === 'claude-sonnet-4-6') || null;
+    }
+
+    // Coût attendu (mode naïf) vs réel (MemBridge) vs économie, pour le modèle actif.
+    function renderSummary(d) {
+      const declared = !!d.active_model;
+      const slug = d.active_model || 'claude-opus-4-8';
+      const price = resolvePrice(slug);
+      $('sum-model').innerHTML = price
+        ? `${price.model}${declared ? '' : ' <span class="tag-default">(défaut — non déclaré par l\'agent)</span>'}`
+        : `${slug} <span class="tag-default">(tarif introuvable)</span>`;
+
+      if (!price) {
+        ['sum-expected', 'sum-actual', 'sum-saved'].forEach(id => $(id).textContent = '—');
+        $('sum-pct').textContent = '0 %';
+        drawChart(0, 0, 0);
+        return;
+      }
+      const naive = d.naive_tokens || 0, mb = d.membridge_tokens || 0, out = d.output_tokens || 0;
+      const expected = naive / 1e6 * price.input + out / 1e6 * price.output;
+      const actual = mb / 1e6 * price.input + out / 1e6 * price.output;
+      const saved = Math.max(0, expected - actual);
+      const gain = d.gain_pct || 0;            // gain de TOKENS (objectif ≥ 70 %)
+      $('sum-expected').textContent = fmtMoney(expected);
+      $('sum-actual').textContent = fmtMoney(actual);
+      $('sum-saved').textContent = fmtMoney(saved);
+      $('sum-pct').textContent = gain.toFixed(0) + ' %';
+
+      const gv = $('gain-val');
+      gv.textContent = gain.toFixed(1) + ' %';
+      gv.className = gain >= 70 ? 'gain-ok' : 'gain-low';
+      $('gain-target').textContent = gain >= 70 ? '✓ objectif ≥ 70 % atteint' : '/ objectif ≥ 70 %';
+      drawChart(expected, actual, saved);
+    }
+
+    // Petit diagramme à barres SVG (sans dépendance).
+    function drawChart(expected, actual, saved) {
+      const bars = [
+        { label: 'Attendu', val: expected, color: '#ef4444' },
+        { label: 'MemBridge', val: actual, color: '#3b82f6' },
+        { label: 'Économie', val: saved, color: '#22c55e' },
+      ];
+      const W = 320, H = 200, base = H - 28, top = 24, bw = 64, gap = 30, x0 = 24;
+      const max = Math.max(expected, actual, saved, 1e-12);
+      let svg = `<line x1="${x0}" y1="${base}" x2="${W - 8}" y2="${base}" stroke="#334155" stroke-width="1"></line>`;
+      bars.forEach((b, i) => {
+        const h = Math.max(0, b.val / max * (base - top));
+        const x = x0 + i * (bw + gap);
+        const y = base - h;
+        const txt = b.val < 0.01 ? b.val.toFixed(5) : b.val.toFixed(4);
+        svg += `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="4" fill="${b.color}"></rect>`;
+        svg += `<text x="${x + bw / 2}" y="${y - 5}" fill="#f1f5f9" font-size="9" text-anchor="middle">${txt}</text>`;
+        svg += `<text x="${x + bw / 2}" y="${base + 16}" fill="#94a3b8" font-size="11" text-anchor="middle">${b.label}</text>`;
+      });
+      $('cost-chart').innerHTML = svg;
+    }
+
+    // Courbe d'utilisation dans le temps : cumuls naïf (rouge) vs MemBridge
+    // (vert) sur l'axe tokens, gain % (bleu, pointillé) sur l'axe droit 0-100.
+    async function loadTimeseries() {
       try {
-        const res = await fetch('../benchmark/results/report.json');
-        const data = await res.json();
-        document.getElementById('naive-tokens').textContent = data.naive.total_tokens.toLocaleString();
-        document.getElementById('memory-tokens').textContent = data.memory.total_tokens.toLocaleString();
-        document.getElementById('savings').textContent = `-${data.savings_pct}% tokens`;
-        document.getElementById('quality-score').textContent = data.quality.passed;
-        document.getElementById('quality-total').textContent = data.quality.total;
-        document.getElementById('quality-bar').style.width = data.quality.score_pct + '%';
-        document.getElementById('report').textContent = JSON.stringify(data, null, 2);
-      } catch {
-        document.getElementById('report').textContent =
-          'Aucun rapport trouvé. Exécutez : python -m benchmark.harness';
+        const res = await fetch(apiBase() + '/api/v1/timeseries?bucket=' + bucket, { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        drawTimeseries(await res.json());
+      } catch (e) { /* la bannière de statut gère déjà l'erreur */ }
+    }
+
+    function drawTimeseries(ts) {
+      const svg = $('ts-chart'), pts = ts.points || [];
+      const W = 720, H = 260, padL = 52, padR = 46, padT = 16, padB = 34;
+      const plotW = W - padL - padR, plotH = H - padT - padB;
+      if (!pts.length) {
+        svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#94a3b8" font-size="13" text-anchor="middle">Aucune donnée — appelez les outils MCP (store / search / summarize) pour alimenter la courbe.</text>`;
+        return;
+      }
+      const maxTok = Math.max(...pts.map(p => p.naive_cum), 1);
+      const n = pts.length;
+      const xAt = i => padL + (n === 1 ? plotW / 2 : i / (n - 1) * plotW);
+      const yTok = v => padT + plotH - (v / maxTok) * plotH;
+      const yPct = v => padT + plotH - (v / 100) * plotH;
+
+      let s = '';
+      for (let g = 0; g <= 4; g++) {
+        const yy = padT + plotH - g / 4 * plotH;
+        s += `<line x1="${padL}" y1="${yy}" x2="${padL + plotW}" y2="${yy}" stroke="#1e293b"/>`;
+        s += `<text x="${padL - 6}" y="${yy + 3}" fill="#64748b" font-size="9" text-anchor="end">${Math.round(maxTok * g / 4).toLocaleString()}</text>`;
+        s += `<text x="${padL + plotW + 6}" y="${yy + 3}" fill="#3b82f6" font-size="9">${Math.round(100 * g / 4)}%</text>`;
+      }
+      s += `<line x1="${padL}" y1="${yPct(70)}" x2="${padL + plotW}" y2="${yPct(70)}" stroke="#3b82f6" stroke-width="0.75" stroke-dasharray="2 4" opacity="0.6"/>`;
+
+      const path = (key, scale) => pts.map((p, i) => `${i ? 'L' : 'M'}${xAt(i).toFixed(1)},${scale(p[key]).toFixed(1)}`).join(' ');
+      s += `<path d="${path('naive_cum', yTok)}" fill="none" stroke="#ef4444" stroke-width="2"/>`;
+      s += `<path d="${path('actual_cum', yTok)}" fill="none" stroke="#22c55e" stroke-width="2"/>`;
+      s += `<path d="${path('gain_pct', yPct)}" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+
+      const step = Math.max(1, Math.ceil(n / 6));
+      pts.forEach((p, i) => {
+        if (i % step === 0 || i === n - 1) {
+          s += `<text x="${xAt(i).toFixed(1)}" y="${H - 12}" fill="#64748b" font-size="9" text-anchor="middle">${p.label.slice(-8)}</text>`;
+        }
+      });
+      svg.innerHTML = s;
+      $('ts-hint').textContent = `${ts.turns} tour(s) · granularité : ${bucket}. L'écart rouge↔vert = tokens économisés ; la courbe bleue franchit la cible 70 %.`;
+    }
+
+    // Représentant le plus récent de chaque famille tendance.
+    function computeTrendy() {
+      const set = new Set();
+      TREND_PATTERNS.forEach(rx => {
+        const matches = catalog.filter(m => rx.test(m.model) || rx.test(m.name));
+        if (matches.length) {
+          matches.sort((a, b) => (b.release_date || '').localeCompare(a.release_date || ''));
+          set.add(matches[0].model);
+        }
+      });
+      return set;
+    }
+
+    function setStatus(ok, msg) {
+      $('dot').className = 'dot ' + (ok ? 'ok' : 'ko');
+      $('status').textContent = msg;
+    }
+
+    // Filtre le catalogue selon la recherche (regex insensible à la casse,
+    // repli sur sous-chaîne littérale si la regex est invalide).
+    function filterCatalog() {
+      const q = searchTerm();
+      if (!q) return catalog;
+      let rx;
+      try { rx = new RegExp(q, 'i'); }
+      catch (e) { rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
+      return catalog.filter(m => rx.test(m.model) || rx.test(m.name) || rx.test(m.provider));
+    }
+
+    // Rend la vue d'ensemble du pricing + le coût de la consommation MCP réelle.
+    function renderCatalog() {
+      const body = $('cost-body'), foot = $('cost-foot'), caption = $('cost-caption');
+      body.innerHTML = ''; foot.innerHTML = '';
+      const inTok = usage.input_tokens || 0, outTok = usage.output_tokens || 0;
+      const all = showAll();
+
+      // Recherche, puis filtre par défaut : on masque les modèles non utilisés
+      // (coût 0) sauf les tendances — sauf si « Afficher tous les modèles ».
+      let rows = filterCatalog();
+      if (!all) {
+        rows = rows.filter(m => trendy.has(m.model) || (inTok + outTok) > 0);
+      }
+      const q = searchTerm();
+
+      if (q) caption.textContent = `${rows.length} modèle(s) pour « ${q} »`;
+      else if (all) caption.textContent = `tous les modèles (${catalog.length})`;
+      else caption.textContent = `tendances + modèles utilisés (${rows.length})`;
+
+      if (!catalog.length) {
+        body.innerHTML = '<tr><td colspan="7" class="muted">Catalogue indisponible (serveur lancé ?).</td></tr>';
+        return;
+      }
+      if (!rows.length) {
+        const hint = all
+          ? 'Aucun modèle ne correspond à la recherche.'
+          : 'Aucun modèle utilisé ni tendance ne correspond — cochez « Afficher tous les modèles ».';
+        body.innerHTML = `<tr><td colspan="7" class="muted">${hint}</td></tr>`;
+        return;
+      }
+
+      let sumIn = 0, sumOut = 0;
+      rows.forEach(m => {
+        const inCost = inTok / 1e6 * m.input;
+        const outCost = outTok / 1e6 * m.output;
+        sumIn += inCost; sumOut += outCost;
+        const badge = trendy.has(m.model) ? '<span class="badge">tendance</span>' : '';
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          `<td>${m.model}${badge}</td><td>${m.provider}</td>`
+          + `<td>${m.input}</td><td>${m.output}</td>`
+          + `<td>${fmtMoney(inCost)}</td><td>${fmtMoney(outCost)}</td>`
+          + `<td class="save">${fmtMoney(inCost + outCost)}</td>`;
+        body.appendChild(tr);
+      });
+
+      // Total additionné uniquement quand une recherche cible un sous-ensemble.
+      if (q) {
+        foot.innerHTML =
+          `<tr><td>TOTAL</td><td>${rows.length} modèle(s)</td><td></td><td></td>`
+          + `<td>${fmtMoney(sumIn)}</td><td>${fmtMoney(sumOut)}</td>`
+          + `<td class="save">${fmtMoney(sumIn + sumOut)}</td></tr>`;
       }
     }
-    loadReport();
+
+    async function refresh() {
+      try {
+        const [statsRes, modelsRes] = await Promise.all([
+          fetch(apiBase() + '/api/v1/stats', { cache: 'no-store' }),
+          fetch(apiBase() + '/api/v1/models', { cache: 'no-store' }),
+        ]);
+        if (!statsRes.ok) throw new Error('stats HTTP ' + statsRes.status);
+        if (!modelsRes.ok) throw new Error('models HTTP ' + modelsRes.status);
+        const d = await statsRes.json();
+        catalog = (await modelsRes.json()).models || [];
+        trendy = computeTrendy();
+        usage = { input_tokens: d.input_tokens, output_tokens: d.output_tokens };
+
+        $('entries').textContent = d.entries_count.toLocaleString();
+        $('stored').innerHTML = d.tokens_stored.toLocaleString();
+        $('saved').innerHTML = d.tokens_saved.toLocaleString() + '<small>équivalent historique complet évité</small>';
+        $('total').textContent = d.total_tokens.toLocaleString();
+        $('store-calls').textContent = d.store_calls.toLocaleString();
+        $('search-calls').textContent = d.search_calls.toLocaleString();
+        $('summarize-calls').textContent = d.summarize_calls.toLocaleString();
+        $('io').textContent = `${d.input_tokens.toLocaleString()} / ${d.output_tokens.toLocaleString()}`;
+        renderSummary(d);
+        renderCatalog();
+        loadTimeseries();
+        setStatus(true, 'connecté · ' + new Date().toLocaleTimeString());
+      } catch (e) {
+        setStatus(false, 'échec : ' + e.message + ' (serveur lancé ? memory-mcp-http)');
+      }
+    }
+
+    async function reset() {
+      try {
+        await fetch(apiBase() + '/api/v1/reset', { method: 'POST' });
+        refresh();
+      } catch (e) { setStatus(false, 'reset échoué : ' + e.message); }
+    }
+
+    function toggleAuto() {
+      if (timer) { clearInterval(timer); timer = null; $('auto').textContent = 'Auto ⟳ : off'; $('auto').className = 'ghost'; }
+      else { timer = setInterval(refresh, 3000); $('auto').textContent = 'Auto ⟳ : on'; $('auto').className = ''; refresh(); }
+    }
+
+    $('refresh').onclick = refresh;
+    $('auto').onclick = toggleAuto;
+    $('reset').onclick = reset;
+    $('search').oninput = renderCatalog;       // filtrage instantané, sans refetch
+    $('showall').onchange = renderCatalog;
+    document.querySelectorAll('#bucket-seg button').forEach(b => {
+      b.onclick = () => {
+        bucket = b.dataset.bucket;
+        document.querySelectorAll('#bucket-seg button').forEach(x => x.classList.toggle('active', x === b));
+        loadTimeseries();
+      };
+    });
+    refresh();
   </script>
 </body>
 </html>

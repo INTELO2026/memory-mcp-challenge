@@ -41,6 +41,13 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "Date ISO (défaut = maintenant)",
                     },
+                    "model": {
+                        "type": "string",
+                        "description": "Slug du modèle IA de l'agent appelant "
+                        "(ex. 'claude-opus-4-8'). Déclaré ici car les outils MCP "
+                        "n'ont pas d'autre moyen de le connaître ; sert au chiffrage "
+                        "du coût (memory_stats, tableau de bord).",
+                    },
                 },
                 "required": ["content"],
             },
@@ -79,8 +86,24 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="memory_stats",
-            description="Retourne les statistiques de consommation de tokens.",
-            inputSchema={"type": "object", "properties": {}},
+            description="Retourne les statistiques de consommation de tokens. "
+            "Si 'model' est fourni, ajoute le coût estimé (USD) via models.dev ; "
+            "avec plusieurs modèles, le coût est détaillé par modèle puis additionné.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "model": {
+                        "description": "Slug du modèle IA (ex. 'claude-opus-4-8' ou "
+                        "'anthropic/claude-sonnet-4-6'), une regex, ou une liste de "
+                        "slugs, pour chiffrer le coût par modèle via models.dev. "
+                        "Slug introuvable → repli sur un Sonnet récent.",
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "array", "items": {"type": "string"}},
+                        ],
+                    },
+                },
+            },
         ),
     ]
 
@@ -95,6 +118,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             turn=arguments.get("turn", 0),
             importance=arguments.get("importance", 0.5),
             date=arguments.get("date"),
+            model=arguments.get("model"),
         )
     elif name == "memory_search":
         result = tools_handler.memory_search(
@@ -108,7 +132,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             max_chars=arguments.get("max_chars", 500),
         )
     elif name == "memory_stats":
-        result = tools_handler.memory_stats()
+        result = tools_handler.memory_stats(model=arguments.get("model"))
     else:
         raise ValueError(f"Outil inconnu : {name}")
 

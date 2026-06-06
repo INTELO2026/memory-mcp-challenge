@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from starlette.requests import Request
@@ -39,6 +39,7 @@ class StoreRequest(BaseModel):
     turn: int = 0
     importance: float = 0.5
     date: str | None = None
+    model: str | None = None
 
 
 class SearchRequest(BaseModel):
@@ -62,6 +63,13 @@ class StatsResponse(BaseModel):
     entries_count: int
     tokens_stored: int
     tokens_saved: int
+    naive_tokens: int = 0
+    membridge_tokens: int = 0
+    gain_pct: float = 0.0
+    turns: int = 0
+    active_model: str | None = None
+    models: list[str] | None = None
+    cost: dict | None = None
 
 
 class StoreResponse(BaseModel):
@@ -113,7 +121,9 @@ fastapi_app = FastAPI(
 fastapi_app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    # Pas d'auth par cookie : on garde le wildcard d'origine fonctionnel pour le
+    # tableau de bord live (un wildcard + credentials serait rejeté par le navigateur).
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -143,6 +153,7 @@ async def api_store(req: StoreRequest):
             turn=req.turn,
             importance=req.importance,
             date=req.date,
+            model=req.model,
         )
         return StoreResponse(**result)
     except Exception as e:
@@ -175,8 +186,44 @@ async def api_summarize(req: SummarizeRequest):
 
 
 @fastapi_app.get("/api/v1/stats", response_model=StatsResponse)
-async def api_stats():
-    return StatsResponse(**tools_handler.memory_stats())
+async def api_stats(
+    model: list[str] | None = Query(
+        default=None,
+        description="Slug(s) de modèle pour chiffrer le coût (répéter ?model=… "
+        "ou valeurs séparées par des virgules).",
+    )
+):
+    return StatsResponse(**tools_handler.memory_stats(model=model))
+
+
+@fastapi_app.get("/api/v1/timeseries")
+async def api_timeseries(
+    bucket: str = Query(
+        default="hour",
+        description="Granularité d'agrégation : 'hour', 'day' ou 'month'.",
+    )
+):
+    """Série temporelle de l'usage (naïf vs MemBridge) agrégée par tranche."""
+    from memory_mcp.stats import get_stats
+
+    if bucket not in ("hour", "day", "month"):
+        bucket = "hour"
+    return get_stats().timeseries(bucket)
+
+
+@fastapi_app.get("/api/v1/models")
+async def api_models(
+    q: str | None = Query(
+        default=None,
+        description="Filtre (regex insensible à la casse) sur l'id, le nom ou le "
+        "fournisseur. Vide = catalogue complet.",
+    )
+):
+    """Catalogue des modèles tarifés (models.dev) pour la vue d'ensemble pricing."""
+    from memory_mcp.pricing import list_models
+
+    models = list_models(query=q)
+    return {"models": models, "count": len(models)}
 
 
 @fastapi_app.post("/api/v1/reset", include_in_schema=True)
