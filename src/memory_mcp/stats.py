@@ -8,10 +8,20 @@ from dataclasses import dataclass, field
 INPUT_PRICE_USD_PER_M = 3.0
 EUR_USD = 0.92
 
-# Estimation contexte MemBridge par tour (tokens)
+# Estimation contexte MemBridge par tour (tokens) — master prompt §4
 SYSTEM_PROMPT_TOKENS = 300
+SUMMARY_BUDGET_TOKENS = 400
+SEARCH_BUDGET_TOKENS = 300
+SLIDING_BUDGET_TOKENS = 200
 SLIDING_WINDOW_TURNS = 3
 AVG_TURN_TOKENS = 50
+PRODUCTION_BUDGET_TOKENS = (
+    SYSTEM_PROMPT_TOKENS
+    + SUMMARY_BUDGET_TOKENS
+    + SEARCH_BUDGET_TOKENS
+    + SLIDING_BUDGET_TOKENS
+    + AVG_TURN_TOKENS
+)  # ~1250 tok/tour en production
 
 
 @dataclass

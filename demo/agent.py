@@ -34,15 +34,18 @@ def run_live_demo(session: str = "demo-live", turns: int = 50) -> None:
     print("  MemBridge — Agent Support Client (démo live)")
     print("=" * 60)
 
+    recent_lines: list[str] = []
+
     for turn in conversation:
-        content = f"{turn['role']}: {turn['content']}"
+        line = f"{turn['role']}: {turn['content']}"
         tools.memory_store(
-            content=content,
+            content=line,
             tags=[turn["role"], "support"],
             session=session,
             turn=turn["turn"],
         )
-        ctx_tokens = per_turn_context_tokens(tools, session, turn["content"])
+        ctx_tokens = per_turn_context_tokens(tools, session, turn["content"], recent_lines)
+        recent_lines.append(line)
         print(f"  Tour {turn['turn']:2d} | ctx={ctx_tokens:3d} tok | {turn['content'][:55]}...")
 
     print("\n--- Résumé session ---")

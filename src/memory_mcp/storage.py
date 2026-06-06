@@ -351,10 +351,10 @@ class MemoryStore:
             rec = recency_decay(t_hours)
             imp_w = row["importance"]
             ret = row["retention_score"]
-            final = 0.85 * sim + 0.10 * imp_w + 0.05 * rec * ret
+            final = 0.5 * sim + 0.3 * imp_w + 0.2 * rec * ret
             scored.append((sim, final, row))
 
-        scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        scored.sort(key=lambda x: x[1], reverse=True)
         results: list[MemoryEntry] = []
         for sim, score, row in scored[:top_k]:
             if record_access:

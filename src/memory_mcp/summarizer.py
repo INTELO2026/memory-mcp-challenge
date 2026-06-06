@@ -118,6 +118,25 @@ def _structured_from_entries(entries: list[MemoryEntry], previous: str = "") -> 
     }
 
 
+def _truncate_to_tokens(text: str, max_tokens: int = 300) -> str:
+    """Limite le résumé à max_tokens (master prompt §13 risque 3)."""
+    from memory_mcp.stats import count_tokens
+
+    if count_tokens(text) <= max_tokens:
+        return text
+    words = text.split()
+    lo, hi = 0, len(words)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        chunk = " ".join(words[:mid])
+        if count_tokens(chunk) <= max_tokens:
+            lo = mid
+        else:
+            hi = mid - 1
+    trimmed = " ".join(words[:lo])
+    return trimmed + "..." if lo < len(words) else trimmed
+
+
 def _format_structured(structured: dict, max_chars: int = 500) -> str:
     parts: list[str] = []
     for fact in structured.get("key_facts", [])[:4]:
@@ -127,8 +146,8 @@ def _format_structured(structured: dict, max_chars: int = 500) -> str:
         parts.append(" | ".join(f"{k}: {v}" for k, v in list(entities.items())[:4]))
     text = " | ".join(parts)
     if len(text) > max_chars:
-        return text[: max_chars - 3] + "..."
-    return text
+        text = text[: max_chars - 3] + "..."
+    return _truncate_to_tokens(text, max_tokens=300)
 
 
 def build_structured_summary(
@@ -163,6 +182,7 @@ def build_structured_summary(
     formatted = _format_structured(structured, max_chars=max_chars)
     if formatted:
         summary = formatted
+    summary = _truncate_to_tokens(summary, max_tokens=300)
 
     return summary, structured, source_turns
 
@@ -208,6 +228,7 @@ def build_extractive_summary(
     summary = " | ".join(parts)
     if len(summary) > max_chars:
         summary = summary[: max_chars - 3] + "..."
+    summary = _truncate_to_tokens(summary, max_tokens=300)
 
     return summary, len(entries)
 
