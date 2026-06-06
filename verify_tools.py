@@ -64,6 +64,13 @@ def test_in_process() -> None:
     check("memory_search", top_ok,
           f"top1={res['results'][0]['content'][:48] if res['results'] else 'vide'}")
 
+    # memory_keys (index clé→valeur) + store avec clé
+    tools.memory_store("Marie Dupont", key="nom_client", session="verify", turn=11)
+    keys = tools.memory_keys(session="verify")
+    by_key = {k["key"]: k["content"] for k in keys["keys"] if k["key"]}
+    check("memory_keys", keys["count"] >= 1 and by_key.get("nom_client") == "Marie Dupont",
+          f"{keys['count']} entrées, {keys['with_key']} avec clé, nom_client={by_key.get('nom_client')}")
+
     # memory_summarize (conserve les faits clés)
     summ = tools.memory_summarize(session="verify")
     text = summ["summary"].lower()
@@ -127,7 +134,7 @@ def test_http(base: str) -> None:
         check("health", False, f"serveur injoignable : {e}")
         return
 
-    _req("POST", f"{base}/api/v1/reset")
+    _req("POST", f"{base}/api/v1/reset?clear=true")
     stored = [_req("POST", f"{base}/api/v1/store",
                    {"content": c, "tags": ["fact"], "session": "verify-http", "turn": t})
               for t, c in FACTS]

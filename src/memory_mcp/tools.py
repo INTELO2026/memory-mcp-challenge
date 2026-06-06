@@ -21,8 +21,13 @@ class MemoryTools:
         importance: float = 0.5,
         date: str | None = None,
         model: str | None = None,
+        key: str | None = None,
     ) -> dict:
         """Stocke un fragment de mémoire avec métadonnées (session, importance, date).
+
+        `key` (optionnel) : étiquette courte et stable (ex. "nom_client",
+        "num_contrat") permettant de retrouver l'info directement via
+        `memory_keys` sans recherche sémantique floue.
 
         `model` (optionnel) : slug du modèle IA de l'agent appelant. Comme les
         outils MCP n'ont pas d'autre canal pour connaître le modèle utilisé,
@@ -30,7 +35,7 @@ class MemoryTools:
         chiffrage du coût dans `memory_stats` et le tableau de bord.
         """
         stats = get_stats()
-        stats.store_calls += 1
+        stats.bump_store_calls()
         stats.set_model(model)
         content_tokens = count_tokens(content)
         stats.add_input(content_tokens)
@@ -43,6 +48,7 @@ class MemoryTools:
             turn=turn,
             importance=importance,
             date=date,
+            key=key,
         )
         return {
             "id": memory_id,
@@ -50,12 +56,45 @@ class MemoryTools:
             "tags": tags or [],
             "importance": importance,
             "date": date or "",
+            "key": (key or "").strip(),
+        }
+
+    def memory_keys(self, session: str | None = None) -> dict:
+        """Index de toutes les données en mémoire : clé + valeur + métadonnées.
+
+        Permet à l'agent de lister ce qui est stocké (et sous quelle clé) puis de
+        récupérer la bonne information directement, sans tâtonner avec une
+        recherche sémantique. Renvoie chaque entrée avec sa `key` (vide si non
+        fournie), son `id`, sa session, son tour, ses tags, sa date et son
+        `content` (les faits étant courts, la valeur est retournée telle quelle).
+        """
+        stats = get_stats()
+        stats.bump_search_calls()
+        entries = self.store.list_keys(session=session)
+        items = [
+            {
+                "key": e.key,
+                "id": e.id,
+                "session": e.session,
+                "turn": e.turn,
+                "tags": e.tags,
+                "date": e.date,
+                "content": e.content,
+            }
+            for e in entries
+        ]
+        keyed = [it for it in items if it["key"]]
+        stats.add_output(count_tokens(str(items)))
+        return {
+            "keys": items,
+            "count": len(items),
+            "with_key": len(keyed),
         }
 
     def memory_search(self, query: str, top_k: int = 5, session: str | None = None) -> dict:
         """Recherche sémantique dans la mémoire."""
         stats = get_stats()
-        stats.search_calls += 1
+        stats.bump_search_calls()
         stats.add_input(count_tokens(query))
 
         hits = self.store.search(query=query, top_k=top_k, session=session)
@@ -65,6 +104,7 @@ class MemoryTools:
                 "content": h.content[:100] + "..." if len(h.content) > 100 else h.content,
                 "tags": h.tags,
                 "turn": h.turn,
+                "key": h.key,
                 "score": round(h.score, 6),
             }
             for h in hits
@@ -87,7 +127,7 @@ class MemoryTools:
           jamais couper un fait au milieu d'un mot.
         """
         stats = get_stats()
-        stats.summarize_calls += 1
+        stats.bump_summarize_calls()
 
         entries = self.store.list_session(session)
         if not entries:
@@ -153,6 +193,9 @@ class MemoryTools:
         via models.dev. Slug introuvable → repli sur un Sonnet récent.
         """
         stats = get_stats().to_dict()
+        # Compteurs alignés sur la base persistante (après reset stats seul).
+        stats["entries_count"] = self.store.count()
+        stats["tokens_stored"] = self.store.total_content_tokens()
         # À défaut de modèle explicite, on chiffre avec celui déclaré par
         # l'agent (active_model) si disponible.
         effective = model or stats.get("active_model")

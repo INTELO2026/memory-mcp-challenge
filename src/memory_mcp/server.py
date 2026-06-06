@@ -9,10 +9,10 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from memory_mcp.tools import MemoryTools
+from memory_mcp.runtime import get_tools
 
 app = Server("memory-mcp")
-tools_handler = MemoryTools()
+tools_handler = get_tools()
 
 
 @app.list_tools()
@@ -48,8 +48,29 @@ async def list_tools() -> list[Tool]:
                         "n'ont pas d'autre moyen de le connaître ; sert au chiffrage "
                         "du coût (memory_stats, tableau de bord).",
                     },
+                    "key": {
+                        "type": "string",
+                        "description": "Étiquette courte et stable (ex. 'nom_client', "
+                        "'num_contrat') pour retrouver l'info directement via "
+                        "memory_keys, sans recherche sémantique floue.",
+                    },
                 },
                 "required": ["content"],
+            },
+        ),
+        Tool(
+            name="memory_keys",
+            description="Liste l'index de la mémoire : la clé (key) et la valeur "
+            "(content) de chaque donnée stockée, avec ses métadonnées. À utiliser "
+            "pour retrouver une info précise directement, sans recherche floue.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session": {
+                        "type": "string",
+                        "description": "Filtrer par session (sinon toutes les sessions)",
+                    },
+                },
             },
         ),
         Tool(
@@ -119,7 +140,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             importance=arguments.get("importance", 0.5),
             date=arguments.get("date"),
             model=arguments.get("model"),
+            key=arguments.get("key"),
         )
+    elif name == "memory_keys":
+        result = tools_handler.memory_keys(session=arguments.get("session"))
     elif name == "memory_search":
         result = tools_handler.memory_search(
             query=arguments["query"],

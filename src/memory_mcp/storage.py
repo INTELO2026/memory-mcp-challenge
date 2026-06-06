@@ -51,6 +51,7 @@ class MemoryEntry:
     turn: int
     importance: float = 0.5
     date: str = ""
+    key: str = ""
     score: float = 0.0
 
 
@@ -268,12 +269,34 @@ def _similarity(a, b) -> float:
     return 0.0
 
 
+def default_db_path() -> str:
+    """Chemin de base **persistant** pour le serveur (surchargé par MEMORY_DB_PATH).
+
+    Le serveur HTTP/MCP doit conserver les données entre redémarrages : on
+    utilise donc un fichier SQLite sur disque, et non `:memory:`. Les tests et la
+    bibliothèque continuent d'utiliser `:memory:` (base éphémère isolée).
+    """
+    env = os.environ.get("MEMORY_DB_PATH")
+    if env:
+        return env
+    base = Path.home() / ".memory_mcp"
+    base.mkdir(parents=True, exist_ok=True)
+    return str(base / "memory.db")
+
+
 class MemoryStore:
     def __init__(self, db_path: str | Path = ":memory:") -> None:
         self.db_path = str(db_path)
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init_schema()
+
+    def clear(self) -> int:
+        """Vide toutes les entrées (utilisé par /api/v1/reset). Retourne le nombre supprimé."""
+        n = self.count()
+        self._conn.execute("DELETE FROM memories")
+        self._conn.commit()
+        return n
 
     def _init_schema(self) -> None:
         self._conn.execute(
@@ -286,10 +309,16 @@ class MemoryStore:
                 turn INTEGER NOT NULL DEFAULT 0,
                 importance REAL NOT NULL DEFAULT 0.5,
                 date TEXT NOT NULL DEFAULT '',
+                key TEXT NOT NULL DEFAULT '',
                 embedding TEXT NOT NULL DEFAULT '{}'
             )
             """
         )
+        # Migration douce : ajoute la colonne `key` aux bases existantes.
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(memories)")}
+        if "key" not in cols:
+            self._conn.execute("ALTER TABLE memories ADD COLUMN key TEXT NOT NULL DEFAULT ''")
+        self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.commit()
 
     def store(
@@ -300,16 +329,50 @@ class MemoryStore:
         turn: int = 0,
         importance: float = 0.5,
         date: str | None = None,
+        key: str | None = None,
     ) -> int:
         tags = tags or []
         date = date or datetime.now().isoformat(timespec="seconds")
+        key = (key or "").strip()
         emb = json.dumps(_embed(content, is_query=False))
         cur = self._conn.execute(
-            "INSERT INTO memories (content, tags, session, turn, importance, date, embedding) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (content, json.dumps(tags), session, turn, importance, date, emb),
+            "INSERT INTO memories (content, tags, session, turn, importance, date, key, embedding) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (content, json.dumps(tags), session, turn, importance, date, key, emb),
         )
         self._conn.commit()
         return int(cur.lastrowid)
+
+    def list_keys(self, session: str | None = None) -> list[MemoryEntry]:
+        """Toutes les entrées (avec leur clé), pour un index direct sans recherche."""
+        rows = self._conn.execute(
+            "SELECT * FROM memories" + (" WHERE session = ?" if session else "")
+            + " ORDER BY id ASC",
+            (session,) if session else (),
+        ).fetchall()
+        return [self._row_to_entry(r) for r in rows]
+
+    def get_by_key(self, key: str, session: str | None = None) -> MemoryEntry | None:
+        """Récupère l'entrée la plus récente portant exactement cette clé."""
+        rows = self._conn.execute(
+            "SELECT * FROM memories WHERE key = ?" + (" AND session = ?" if session else "")
+            + " ORDER BY id DESC LIMIT 1",
+            (key, session) if session else (key,),
+        ).fetchall()
+        return self._row_to_entry(rows[0]) if rows else None
+
+    @staticmethod
+    def _row_to_entry(r: sqlite3.Row) -> MemoryEntry:
+        return MemoryEntry(
+            id=r["id"],
+            content=r["content"],
+            tags=json.loads(r["tags"]),
+            session=r["session"],
+            turn=r["turn"],
+            importance=r["importance"],
+            date=r["date"],
+            key=r["key"] if "key" in r.keys() else "",
+        )
 
     def search(self, query: str, top_k: int = 5, session: str | None = None) -> list[MemoryEntry]:
         q_vec = _embed(query, is_query=True)
@@ -347,18 +410,9 @@ class MemoryStore:
 
         results: list[MemoryEntry] = []
         for score, row in scored[:top_k]:
-            results.append(
-                MemoryEntry(
-                    id=row["id"],
-                    content=row["content"],
-                    tags=json.loads(row["tags"]),
-                    session=row["session"],
-                    turn=row["turn"],
-                    importance=row["importance"],
-                    date=row["date"],
-                    score=score,
-                )
-            )
+            entry = self._row_to_entry(row)
+            entry.score = score
+            results.append(entry)
         return results
 
     def list_session(self, session: str) -> list[MemoryEntry]:
@@ -366,18 +420,7 @@ class MemoryStore:
             "SELECT * FROM memories WHERE session = ? ORDER BY turn ASC, id ASC",
             (session,),
         ).fetchall()
-        return [
-            MemoryEntry(
-                id=r["id"],
-                content=r["content"],
-                tags=json.loads(r["tags"]),
-                session=r["session"],
-                turn=r["turn"],
-                importance=r["importance"],
-                date=r["date"],
-            )
-            for r in rows
-        ]
+        return [self._row_to_entry(r) for r in rows]
 
     def count(self) -> int:
         row = self._conn.execute("SELECT COUNT(*) AS c FROM memories").fetchone()

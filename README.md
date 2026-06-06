@@ -77,8 +77,19 @@ python -m benchmark.harness 50 "opus.*4.8"                    # slug par express
 python -m demo.agent                        # ou : python -m demo.agent 50 support claude-opus-4-8
 
 # Serveur MCP (stdio) / HTTP+SSE
+# Chatbot IA : la clé reste côté serveur (PowerShell : $env:GEMINI_API_KEY="...")
+# Modèle par défaut : gemma-4-31b-it (surcharge : MEMORY_CHAT_MODEL)
 memory-mcp
 memory-mcp-http        # écoute sur http://localhost:8010
+# Persistance complète sur disque (~/.memory_mcp/) :
+#   memory.db  — entrées mémoire (MEMORY_DB_PATH)
+#   stats.json — TOUS les compteurs (tokens économisés, appels store/search/
+#                summarize, courbes temporelles, gain %, modèle actif…)
+#                (MEMORY_STATS_PATH)
+# Tout est rechargé au redémarrage. Vérifiez via GET /health (db_path,
+# stats_path, entries_count). POST /api/v1/reset remet les compteurs à zéro
+# par défaut ; ?clear=true vide aussi la mémoire.
+# (Astuce dev : lancer uvicorn avec --reload pour recharger le code modifié.)
 
 # Tableau de bord LIVE (données réelles du MCP, aucune simulation)
 #   1) lancer le serveur :  memory-mcp-http
@@ -93,6 +104,8 @@ memory-mcp-http        # écoute sur http://localhost:8010
 # catalogue complet models.dev. Recherche (regex acceptée) pour filtrer.
 # Le gain croît avec le nombre de tours : il dépasse 70 % sur une vraie
 # conversation (mémoire ciblée vs historique complet renvoyé à chaque tour).
+# Le coin inférieur droit contient aussi un chatbot IA qui répond depuis la
+# mémoire via POST /api/v1/chat, sans exposer la clé API au navigateur.
 ```
 
 ## Les trois chantiers (sprints du sujet §3.4)
@@ -103,11 +116,12 @@ memory-mcp-http        # écoute sur http://localhost:8010
 | **Résumé intelligent** — compresser sans perdre les faits | ✅ extractif, garde tous les faits porteurs d'info | `src/memory_mcp/tools.py` |
 | **Benchmark** — contexte stable + comparaison fiable | ✅ courbes par tour, questions pièges, coût €, `report.json` | `benchmark/` + `dashboard/` |
 
-## Les 4 outils MCP
+## Les outils MCP
 
 | Outil | Description |
 |-------|-------------|
-| `memory_store(content, tags, model?)` | Stocke un fragment de mémoire. `model` (optionnel) = slug du modèle IA de l'agent |
+| `memory_store(content, tags, key?, model?)` | Stocke un fragment. `key` (optionnel) = étiquette stable pour un accès direct ; `model` = slug du modèle IA de l'agent |
+| `memory_keys(session?)` | **Index clé→valeur** de toute la mémoire : retrouve l'info directement, sans recherche floue |
 | `memory_search(query, top_k)` | Recherche **sémantique** (paraphrases !) |
 | `memory_summarize(session)` | Résumé **compressé** conservant les faits |
 | `memory_stats(model?)` | Tokens consommés + coût ; à défaut de `model`, utilise celui déclaré |
