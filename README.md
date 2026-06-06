@@ -59,7 +59,31 @@ python -m benchmark.harness
 
 # Serveur MCP
 memory-mcp
+
+# Config MCP pour Cursor / Claude (étape jury)
+python scripts/setup_mcp_config.py
+python scripts/test_mcp_connection.py
 ```
+
+## Connecter un agent externe (MCP)
+
+Après `pip install -e .` :
+
+```bash
+python scripts/setup_mcp_config.py
+```
+
+Cela écrit `.cursor/mcp.json` (Cursor) et `config/claude_desktop_config.generated.json` (Claude Desktop).
+
+Puis **redémarrez Cursor** → serveur **membridge** avec les 4 outils.
+
+Vérifier la connexion :
+
+```bash
+python scripts/test_mcp_connection.py
+```
+
+Vous devez voir : `memory_store`, `memory_search`, `memory_summarize`, `memory_stats`.
 
 ## Les 4 outils MCP
 

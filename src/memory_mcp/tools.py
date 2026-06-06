@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from memory_mcp.stats import count_tokens, get_stats
 from memory_mcp.storage import MemoryStore
+from memory_mcp.summarize import distill_session
+
+_SEARCH_TOTAL_CHARS = 120
 
 
 class MemoryTools:
@@ -28,16 +31,21 @@ class MemoryTools:
         stats.add_input(count_tokens(query))
 
         hits = self.store.search(query=query, top_k=top_k, session=session)
-        results = [
-            {
-                "id": h.id,
-                "content": h.content,
-                "tags": h.tags,
-                "turn": h.turn,
-                "score": round(h.score, 6),
-            }
-            for h in hits
-        ]
+        per_hit = _SEARCH_TOTAL_CHARS // max(len(hits), 1)
+        results = []
+        for h in hits:
+            snippet = h.content
+            if len(snippet) > per_hit:
+                snippet = snippet[: per_hit - 3] + "..."
+            results.append(
+                {
+                    "id": h.id,
+                    "content": snippet,
+                    "tags": h.tags,
+                    "turn": h.turn,
+                    "score": round(h.score, 6),
+                }
+            )
         stats.add_output(count_tokens(str(results)))
         return {"results": results, "count": len(results)}
 
@@ -50,11 +58,7 @@ class MemoryTools:
         if not entries:
             return {"summary": "", "source_turns": 0, "compressed_chars": 0}
 
-        # TODO équipe : remplacer par un vrai résumé LLM
-        parts = [f"[t{e.turn}] {e.content[:80]}" for e in entries]
-        summary = " | ".join(parts)
-        if len(summary) > max_chars:
-            summary = summary[: max_chars - 3] + "..."
+        summary = distill_session(entries, max_chars=max_chars)
 
         stats.add_input(count_tokens("".join(e.content for e in entries)))
         stats.add_output(count_tokens(summary))

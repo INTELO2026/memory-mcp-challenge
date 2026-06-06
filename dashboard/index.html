@@ -1,81 +1,139 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Memory MCP — Benchmark Dashboard</title>
-  <style>
-    :root { --red: #ef4444; --green: #22c55e; --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
-    h1 { margin-bottom: 0.5rem; }
-    .subtitle { color: #94a3b8; margin-bottom: 2rem; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    .card { background: var(--card); border-radius: 12px; padding: 1.5rem; }
-    .card h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 1rem; }
-    .metric { font-size: 2.5rem; font-weight: 700; }
-    .metric.naive { color: var(--red); }
-    .metric.memory { color: var(--green); }
-    .savings { margin-top: 2rem; text-align: center; font-size: 1.5rem; }
-    .savings span { color: var(--green); font-weight: 700; }
-    canvas { width: 100%; height: 200px; margin-top: 1rem; }
-    .quality { margin-top: 1.5rem; }
-    .bar { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
-    .bar-fill { height: 100%; background: var(--green); transition: width 0.5s; }
-    pre { background: #0f172a; padding: 1rem; border-radius: 8px; overflow: auto; font-size: 0.8rem; margin-top: 1rem; }
-  </style>
-</head>
-<body>
-  <h1>Memory MCP Benchmark</h1>
-  <p class="subtitle">Hackathon INTELO2026 — Naïf vs Mémoire</p>
-
-  <div class="grid">
-    <div class="card">
-      <h2>Mode naïf (tout l'historique)</h2>
-      <div class="metric naive" id="naive-tokens">—</div>
-      <p>tokens cumulés</p>
-    </div>
-    <div class="card">
-      <h2>Mode mémoire MCP</h2>
-      <div class="metric memory" id="memory-tokens">—</div>
-      <p>tokens cumulés</p>
-    </div>
-  </div>
-
-  <div class="savings">
-    Économie : <span id="savings">—</span>
-  </div>
-
-  <div class="card quality">
-    <h2>Qualité — questions pièges</h2>
-    <p><span id="quality-score">—</span> / <span id="quality-total">—</span> réussies</p>
-    <div class="bar"><div class="bar-fill" id="quality-bar" style="width:0%"></div></div>
-  </div>
-
-  <div class="card">
-    <h2>Rapport JSON</h2>
-    <pre id="report">Chargez benchmark/results/report.json ou lancez python -m benchmark.harness > report.json</pre>
-  </div>
-
-  <script>
-    // TODO équipe : brancher sur les résultats live du benchmark
-    async function loadReport() {
-      try {
-        const res = await fetch('../benchmark/results/report.json');
-        const data = await res.json();
-        document.getElementById('naive-tokens').textContent = data.naive.total_tokens.toLocaleString();
-        document.getElementById('memory-tokens').textContent = data.memory.total_tokens.toLocaleString();
-        document.getElementById('savings').textContent = `-${data.savings_pct}% tokens`;
-        document.getElementById('quality-score').textContent = data.quality.passed;
-        document.getElementById('quality-total').textContent = data.quality.total;
-        document.getElementById('quality-bar').style.width = data.quality.score_pct + '%';
-        document.getElementById('report').textContent = JSON.stringify(data, null, 2);
-      } catch {
-        document.getElementById('report').textContent =
-          'Aucun rapport trouvé. Exécutez : python -m benchmark.harness';
-      }
-    }
-    loadReport();
-  </script>
-</body>
-</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemBridge — MCP Memory Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="page-bg">
+    <div class="shell">
+      <aside class="side">
+        <div class="logo-row">
+          <span class="logo-text">MEMBRIDGE</span>
+          <span class="live-dot" title="Live session"></span>
+        </div>
+        <nav class="nav" id="nav"></nav>
+
+        <p class="sec-title">Active agents</p>
+        <div class="agents-row">
+          <div class="agent agent-live" id="agent-you"><span class="agent-ico">👤</span><span>You</span></div>
+          <div class="agent agent-live" id="agent-groq"><span class="agent-ico">🤖</span><span id="agent-groq-lbl">Groq</span></div>
+          <div class="agent agent-live" id="agent-mcp"><span class="agent-ico">⚡</span><span>MCP</span></div>
+        </div>
+
+        <p class="sec-title">MCP Memory Tools</p>
+        <div class="tool-list" id="tools"></div>
+        <div class="mini-feed" id="feed"><div class="mini-line muted">Waiting for MCP actions…</div></div>
+      </aside>
+
+      <main class="main">
+        <div class="main-head">
+          <h1>Live Memory Stream</h1>
+          <button class="cyber-btn" id="reset-btn" type="button">⟳ Reset session</button>
+        </div>
+
+        <div class="viz-wrap" id="viz-wrap">
+          <div class="memory-panel" id="memory-panel">
+            <div id="helix-mount"></div>
+
+            <div class="hud hud-tl">
+              <div class="hud-tag">MEMBRIDGE.MEMORY.STREAM</div>
+              <div class="hud-title">MCP SERVER OUTPUT · LIVE CHAT HISTORY</div>
+              <div class="hud-path" id="hud-path">/membridge/mcp/memory_store</div>
+              <div class="hud-meta">Turn <span id="hud-turn">0</span> · <span id="brain-status">checking…</span></div>
+            </div>
+
+            <div class="hud hud-bl">
+              <div class="hud-label">RETRIEVAL LATENCY</div>
+              <div class="hud-big" id="hud-latency">—<span>s</span></div>
+              <div class="hud-sub" id="hud-last-tool">idle — no chat yet</div>
+            </div>
+
+            <div class="hud-callouts" id="callouts">
+              <div class="callout" data-n="1"><b>1</b> <code>memory_store</code> saves your message</div>
+              <div class="callout" data-n="2"><b>2</b> <code>memory_search</code> finds relevant facts</div>
+              <div class="callout" data-n="3"><b>3</b> <code>memory_summarize</code> compresses session</div>
+              <div class="callout" data-n="4"><b>4</b> Groq reads memory, not full history</div>
+              <div class="callout hot" data-n="5"><b>5</b> <span id="callout-live">Helix empty — send a message</span></div>
+            </div>
+
+            <div class="hud-code">
+              <div class="hud-code-bar">memory_mcp/tools.py</div>
+              <pre id="code-preview"># waiting for chat…</pre>
+            </div>
+
+            <div class="helix-empty" id="helix-empty">
+              <span class="helix-empty-icon">◎</span>
+              <span>NO MEMORY FRAGMENTS</span>
+              <small>DNA helix mirrors your chat — empty until you send a message</small>
+            </div>
+
+            <button class="cbtn cbtn-pause" id="play-btn" type="button" title="Pause rotation">⏸</button>
+          </div>
+
+          <div class="chat-resizer" id="chat-resizer" title="Drag to resize chat"></div>
+
+          <div class="chat-dock" id="chat-dock">
+            <div class="chat-header">
+              <span>👤 You</span><span class="chat-vs">↔</span><span>🤖 Groq + MCP</span>
+              <span class="chat-turn">Turn <span id="turn-num">0</span> · <span id="frag-count">0</span> fragments</span>
+            </div>
+            <div class="chat-scroll" id="messages">
+              <div class="bubble sys">Type a message — keywords from chat will orbit the DNA helix</div>
+            </div>
+            <div class="chat-bar">
+              <textarea id="chat-input" rows="2" autocomplete="off" placeholder="John is 74, in Japan, has a dog..."></textarea>
+              <button type="button" id="send-btn">Send</button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <aside class="right">
+        <div class="prof-row">
+          <div class="prof">
+            <div class="prof-img mcp"></div>
+            <div>
+              <div class="prof-name">Live Session</div>
+              <div class="prof-loc">MemBridge MCP · Groq LLM</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="qgrid">
+          <div class="qbox"><span>📊</span><div class="qnum" id="tokens-consumed">0</div><div class="qlbl">Tokens consumed</div></div>
+          <div class="qbox"><span>🔍</span><div class="qnum" id="retrieves">0</div><div class="qlbl">memory_search</div></div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-top">
+            <div>
+              <div class="stat-label">Token savings</div>
+              <div class="stat-sub">vs naïve full-history</div>
+            </div>
+            <div class="stat-big"><span id="savings-pct">0</span><small>%</small></div>
+          </div>
+          <canvas id="pulse" width="280" height="64"></canvas>
+          <div class="stat-foot">Saved: <b id="tokens-saved">0</b> tok · <span id="euros-saved">0</span> €</div>
+        </div>
+
+        <div class="activity-card">
+          <div class="act-head"><span>MCP Tool Activity</span></div>
+          <div class="gantt">
+            <div class="grow"><span>memory_store</span><div class="grow-track"><div class="grow-bar" id="bar-store"></div></div></div>
+            <div class="grow"><span>memory_search</span><div class="grow-track"><div class="grow-bar search" id="bar-search"></div></div></div>
+            <div class="grow"><span>memory_summarize</span><div class="grow-track"><div class="grow-bar light" id="bar-sum"></div></div></div>
+          </div>
+          <div class="spent">Spent: <b id="amount-spent">0</b> €</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
+
