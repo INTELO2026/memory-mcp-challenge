@@ -1,4 +1,4 @@
-"""Serveur MCP exposant memory_store, memory_search, memory_summarize, memory_stats."""
+"""Serveur MCP — 4 outils avancés avec métadonnées complètes."""
 
 from __future__ import annotations
 
@@ -9,7 +9,10 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
+from memory_mcp.config import ensure_env_loaded
 from memory_mcp.tools import MemoryTools
+
+ensure_env_loaded()
 
 app = Server("memory-mcp")
 tools_handler = MemoryTools()
@@ -20,54 +23,90 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="memory_store",
-            description="Stocke un fragment de mémoire avec tags optionnels.",
+            description=(
+                "Enregistre une information dans la mémoire avec métadonnées "
+                "(session, date ISO, importance 0-3, tags). Déduplication automatique."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "content": {"type": "string", "description": "Contenu à mémoriser"},
-                    "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags"},
-                    "session": {"type": "string", "description": "ID de session"},
-                    "turn": {"type": "integer", "description": "Numéro de tour"},
+                    "tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Tags sémantiques (fact, exchange, noise…)",
+                    },
+                    "session": {"type": "string", "description": "Identifiant de session"},
+                    "turn": {"type": "integer", "description": "Numéro de tour conversation"},
+                    "importance": {
+                        "type": "integer",
+                        "description": "Importance explicite 0-3 (sinon déduite des tags)",
+                        "minimum": 0,
+                        "maximum": 3,
+                    },
                 },
                 "required": ["content"],
             },
         ),
         Tool(
             name="memory_search",
-            description="Recherche sémantique dans la mémoire.",
+            description=(
+                "Récupère par similarité sémantique les k souvenirs pertinents. "
+                "Ranking hybride : sémantique + lexical + domaine + hiérarchie."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Requête de recherche"},
-                    "top_k": {
-                        "type": "integer",
-                        "description": "Nombre de résultats",
-                        "default": 5,
-                    },
+                    "query": {"type": "string", "description": "Requête en langage naturel"},
+                    "top_k": {"type": "integer", "default": 5},
                     "session": {"type": "string", "description": "Filtrer par session"},
+                    "tag": {"type": "string", "description": "Exiger un tag"},
+                    "min_importance": {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Importance minimale",
+                    },
+                    "exclude_tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Tags à exclure",
+                    },
                 },
                 "required": ["query"],
             },
         ),
         Tool(
             name="memory_summarize",
-            description="Résume compressé de l'historique d'une session.",
+            description=(
+                "Renvoie un résumé compressé de l'historique d'une session — "
+                "cerveau de la compression avec ratio et faits préservés."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "session": {"type": "string", "description": "ID de session"},
-                    "max_chars": {
-                        "type": "integer",
-                        "description": "Taille max du résumé",
-                        "default": 500,
+                    "session": {"type": "string", "default": "default"},
+                    "max_chars": {"type": "integer"},
+                    "max_tokens": {"type": "integer", "default": 200},
+                    "use_llm": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Utiliser LLM si MEMBRIDGE_USE_LLM=1",
                     },
                 },
             },
         ),
         Tool(
             name="memory_stats",
-            description="Retourne les statistiques de consommation de tokens.",
-            inputSchema={"type": "object", "properties": {}},
+            description=(
+                "Métriques : tokens stockés, tokens économisés, nombre d'entrées, "
+                "sessions actives, moteur embeddings, features avancées."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session": {"type": "string", "description": "Filtrer par session"},
+                },
+            },
         ),
     ]
 
@@ -80,20 +119,26 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             tags=arguments.get("tags"),
             session=arguments.get("session", "default"),
             turn=arguments.get("turn", 0),
+            importance=arguments.get("importance"),
         )
     elif name == "memory_search":
         result = tools_handler.memory_search(
             query=arguments["query"],
             top_k=arguments.get("top_k", 5),
             session=arguments.get("session"),
+            tag=arguments.get("tag"),
+            min_importance=arguments.get("min_importance", 0),
+            exclude_tags=arguments.get("exclude_tags"),
         )
     elif name == "memory_summarize":
         result = tools_handler.memory_summarize(
             session=arguments.get("session", "default"),
-            max_chars=arguments.get("max_chars", 500),
+            max_chars=arguments.get("max_chars"),
+            max_tokens=arguments.get("max_tokens"),
+            use_llm=arguments.get("use_llm", False),
         )
     elif name == "memory_stats":
-        result = tools_handler.memory_stats()
+        result = tools_handler.memory_stats(session=arguments.get("session"))
     else:
         raise ValueError(f"Outil inconnu : {name}")
 
@@ -106,6 +151,7 @@ async def run_server() -> None:
 
 
 def main() -> None:
+    ensure_env_loaded()
     asyncio.run(run_server())
 
 

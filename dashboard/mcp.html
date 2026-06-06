@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemBridge — Console MCP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="ui.js"></script>
+</head>
+<body class="page-mcp">
+  <div class="ambient" aria-hidden="true">
+    <div class="grid-overlay"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1>MemBridge</h1>
+          <p>Console MCP</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="live.html">Arena live</a>
+        <a href="mcp.html" class="active">Console MCP</a>
+        <a href="index.html">Benchmark</a>
+        <a href="bonus.html">Bonus</a>
+        <a href="demo.html">Atelier</a>
+      </nav>
+      <div class="sidebar-footer">4 outils · ranking hybride · stats live</div>
+    </aside>
+
+    <main class="main">
+      <section class="hero reveal visible">
+        <p class="hero-eyebrow">Protocole MCP — produit complet</p>
+        <h2>Console des 4 outils</h2>
+        <p>
+          Testez <code>memory_store</code>, <code>memory_search</code>,
+          <code>memory_summarize</code> et <code>memory_stats</code> en direct.
+          Ranking détaillé, métadonnées, déduplication.
+        </p>
+        <div class="status-bar">
+          <span class="pill live" id="mcp-status">Prêt</span>
+          <button class="btn" id="btn-reset-mcp">Reset mémoire</button>
+        </div>
+      </section>
+
+      <div class="mcp-tabs reveal reveal-delay-1">
+        <button class="mcp-tab active" data-tab="store">memory_store</button>
+        <button class="mcp-tab" data-tab="search">memory_search</button>
+        <button class="mcp-tab" data-tab="summarize">memory_summarize</button>
+        <button class="mcp-tab" data-tab="stats">memory_stats</button>
+      </div>
+
+      <div class="mcp-panel reveal reveal-delay-2" id="panel-store">
+        <div class="card">
+          <h3>Enregistrer — session, date, importance</h3>
+          <div class="mcp-form">
+            <label>Contenu<textarea id="store-content" rows="3">user: Marie Dupont, cliente premium TechCorp — CTR-2024-8847</textarea></label>
+            <label>Tags<input id="store-tags" value="fact,user,premium" /></label>
+            <label>Session<input id="store-session" value="console" /></label>
+            <label>Importance (0-3)<input id="store-importance" type="number" min="0" max="3" value="3" /></label>
+            <button class="btn primary" id="btn-store">Stocker</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mcp-panel hidden" id="panel-search">
+        <div class="card">
+          <h3>Recherche sémantique + ranking hybride</h3>
+          <div class="mcp-form">
+            <label>Requête<input id="search-query" value="identité interlocutrice premium" /></label>
+            <label>Session<input id="search-session" value="console" /></label>
+            <label>Tag requis<input id="search-tag" placeholder="fact (optionnel)" /></label>
+            <label>Importance min<input id="search-min-imp" type="number" value="0" min="0" max="3" /></label>
+            <button class="btn primary" id="btn-search">Rechercher</button>
+          </div>
+          <div id="search-results" class="search-results"></div>
+        </div>
+      </div>
+
+      <div class="mcp-panel hidden" id="panel-summarize">
+        <div class="card">
+          <h3>Compression — cerveau du résumé</h3>
+          <div class="mcp-form">
+            <label>Session<input id="sum-session" value="console" /></label>
+            <label>Max tokens<input id="sum-tokens" type="number" value="120" /></label>
+            <button class="btn primary" id="btn-summarize">Résumer</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mcp-panel hidden" id="panel-stats">
+        <div class="card">
+          <h3>Métriques globales</h3>
+          <button class="btn primary" id="btn-stats">Actualiser memory_stats()</button>
+        </div>
+      </div>
+
+      <div class="card reveal reveal-delay-3" style="margin-top:1rem">
+        <h3>Réponse MCP (JSON)</h3>
+        <pre id="mcp-output" class="mcp-output">—</pre>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    const output = document.getElementById("mcp-output");
+    const statusEl = document.getElementById("mcp-status");
+
+    async function mcp(path, body = {}) {
+      statusEl.textContent = "Appel MCP…";
+      const res = await fetch(`/api/mcp/${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      output.textContent = JSON.stringify(data, null, 2);
+      output.classList.add("flash");
+      setTimeout(() => output.classList.remove("flash"), 400);
+      statusEl.textContent = "OK";
+      statusEl.className = "pill ok";
+      return data;
+    }
+
+    document.querySelectorAll(".mcp-tab").forEach((tab) => {
+      tab.onclick = () => {
+        document.querySelectorAll(".mcp-tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".mcp-panel").forEach((p) => p.classList.add("hidden"));
+        tab.classList.add("active");
+        document.getElementById(`panel-${tab.dataset.tab}`).classList.remove("hidden");
+      };
+    });
+
+    document.getElementById("btn-store").onclick = () =>
+      mcp("store", {
+        content: document.getElementById("store-content").value,
+        tags: document.getElementById("store-tags").value.split(",").map((s) => s.trim()),
+        session: document.getElementById("store-session").value,
+        turn: Date.now() % 1000,
+        importance: Number(document.getElementById("store-importance").value),
+      });
+
+    document.getElementById("btn-search").onclick = async () => {
+      const data = await mcp("search", {
+        query: document.getElementById("search-query").value,
+        session: document.getElementById("search-session").value,
+        top_k: 3,
+        tag: document.getElementById("search-tag").value || undefined,
+        min_importance: Number(document.getElementById("search-min-imp").value),
+      });
+      const box = document.getElementById("search-results");
+      box.innerHTML = (data.results || [])
+        .map(
+          (r) => `
+          <div class="search-hit">
+            <div class="search-hit-head">
+              <span class="badge ok">score ${r.score}</span>
+              <span class="hint">imp ${r.importance} · tour ${r.turn}</span>
+            </div>
+            <p>${r.content}</p>
+            ${
+              r.ranking
+                ? `<div class="rank-bars">${Object.entries(r.ranking)
+                    .map(
+                      ([k, v]) =>
+                        `<span>${k}<em>${v}</em></span>`
+                    )
+                    .join("")}</div>`
+                : ""
+            }
+          </div>`
+        )
+        .join("");
+    };
+
+    document.getElementById("btn-summarize").onclick = () =>
+      mcp("summarize", {
+        session: document.getElementById("sum-session").value,
+        max_tokens: Number(document.getElementById("sum-tokens").value),
+      });
+
+    document.getElementById("btn-stats").onclick = () => mcp("stats", {});
+
+    document.getElementById("btn-reset-mcp").onclick = () => mcp("reset", {});
+  </script>
+</body>
+</html>

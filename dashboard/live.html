@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemBridge — Démo live jury</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script type="module" src="ui.js"></script>
+</head>
+<body class="page-live">
+  <div class="ambient" aria-hidden="true">
+    <div class="grid-overlay"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1>MemBridge</h1>
+          <p>Arena — démo jury</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="live.html" class="active">Arena live</a>
+        <a href="mcp.html">Console MCP</a>
+        <a href="index.html">Benchmark</a>
+        <a href="bonus.html">Bonus</a>
+        <a href="demo.html">Atelier</a>
+      </nav>
+      <div class="sidebar-footer">MCP en temps réel · compteurs live</div>
+    </aside>
+
+    <main class="main">
+      <section class="hero reveal visible">
+        <p class="hero-eyebrow">Scénario §5 sujet</p>
+        <h2>Watch the tokens diverge</h2>
+        <p>
+          Chaque tour exécute le vrai pipeline MCP. Compteurs et chat calculés
+          en direct — rien n'est pré-enregistré.
+        </p>
+        <div class="status-bar">
+          <span class="pill live" id="status">Connexion API…</span>
+        </div>
+      </section>
+
+      <p class="turn-indicator">Tour <strong id="turn-label">0</strong> / <span id="turn-total">50</span></p>
+
+      <div class="live-stage">
+        <div class="live-counter naive">
+          <h3>Mode naïf</h3>
+          <div class="value" id="naive-live">0</div>
+          <p class="metric-label">tokens cumulés (historique complet)</p>
+        </div>
+        <div class="live-counter memory">
+          <h3>MemBridge</h3>
+          <div class="value" id="memory-live">0</div>
+          <p class="metric-label">tokens cumulés (résumé + search)</p>
+        </div>
+      </div>
+
+      <div class="live-controls">
+        <button class="btn primary" id="btn-play">▶ Lancer l'arena</button>
+        <button class="btn" id="btn-pause" disabled>Pause</button>
+        <button class="btn" id="btn-reset">Nouvelle session</button>
+      </div>
+
+      <div class="savings-banner" id="final-banner" style="display:none">
+        Économie live :
+        <strong id="final-savings">—</strong>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Conversation live (MCP)</h3>
+          <div class="chat" id="chat-log"></div>
+        </div>
+        <div class="card">
+          <h3>Courbe tokens (live)</h3>
+          <canvas id="live-chart"></canvas>
+          <div class="trap-panel" id="trap-section" style="display:none;margin-top:1rem">
+            <h3 style="margin-bottom:0.5rem">Question piège — memory_search</h3>
+            <select id="trap-select" class="btn" style="width:100%"></select>
+            <div id="trap-result" style="margin-top:0.75rem">—</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import {
+      appendChatMessage,
+      createLiveSession,
+      fetchTraps,
+      formatNumber,
+      stepLiveSession,
+      trapLiveSession,
+    } from "./live-api.js";
+    import { animateMetric, tickCounter } from "./ui.js";
+
+    let sessionId = null;
+    let timer = null;
+    let playing = false;
+    let chart = null;
+    let naiveSeries = [];
+    let memorySeries = [];
+    let labels = [];
+    let traps = [];
+
+    const statusEl = document.getElementById("status");
+    const chatLog = document.getElementById("chat-log");
+    const btnPlay = document.getElementById("btn-play");
+    const btnPause = document.getElementById("btn-pause");
+    const btnReset = document.getElementById("btn-reset");
+
+    function initChart() {
+      const ctx = document.getElementById("live-chart").getContext("2d");
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            { label: "Naïf", data: [], borderColor: "#e8624f", tension: 0.35, pointRadius: 0 },
+            { label: "MemBridge", data: [], borderColor: "#6ee7b7", tension: 0.35, pointRadius: 0 },
+          ],
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          plugins: { legend: { labels: { color: "#f4f2ec" } } },
+          scales: {
+            x: { ticks: { color: "#8b8980" }, grid: { color: "rgba(244,242,236,0.05)" } },
+            y: { ticks: { color: "#8b8980" }, grid: { color: "rgba(244,242,236,0.05)" } },
+          },
+        },
+      });
+    }
+
+    function updateCounters(event) {
+      const naive = event.session?.naive_cumulative || event.naive_cumulative || 0;
+      const memory = event.session?.memory_cumulative || event.memory_cumulative || 0;
+      animateMetric(document.getElementById("naive-live"), naive, formatNumber);
+      animateMetric(document.getElementById("memory-live"), memory, formatNumber);
+      tickCounter(document.querySelector(".live-counter.naive"));
+      tickCounter(document.querySelector(".live-counter.memory"));
+      document.getElementById("turn-label").textContent = String(event.turn || 0);
+
+      labels.push(`T${event.turn}`);
+      naiveSeries.push(event.naive_cumulative || event.session?.naive_cumulative || 0);
+      memorySeries.push(event.memory_cumulative || event.session?.memory_cumulative || 0);
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = naiveSeries;
+      chart.data.datasets[1].data = memorySeries;
+      chart.update();
+    }
+
+    function showSavings(naive, memory) {
+      if (!naive) return;
+      const savings = ((1 - memory / naive) * 100).toFixed(1);
+      document.getElementById("final-banner").style.display = "block";
+      document.getElementById("final-savings").textContent =
+        `-${savings}% (${formatNumber(naive - memory)} tokens)`;
+    }
+
+    async function processStep() {
+      const event = await stepLiveSession(sessionId);
+      updateCounters(event);
+
+      if (event.role === "user" && event.assistant_reply) {
+        appendChatMessage(chatLog, {
+          turn: event.turn,
+          role: "user",
+          content: event.content,
+          source: "live",
+        });
+        appendChatMessage(chatLog, {
+          turn: event.turn,
+          role: "assistant",
+          content: event.assistant_reply,
+          source: "mcp",
+        });
+      } else if (event.role === "assistant") {
+        appendChatMessage(chatLog, {
+          turn: event.turn,
+          role: "assistant",
+          content: event.content,
+          source: "script",
+        });
+      }
+
+      if (event.done) {
+        stop();
+        showSavings(event.session.naive_cumulative, event.session.memory_cumulative);
+        document.getElementById("trap-section").style.display = "block";
+        statusEl.textContent = `Termine — qualite ${event.quality?.passed}/${event.quality?.total}`;
+        statusEl.className = "pill ok";
+        setupTraps();
+      }
+    }
+
+    async function setupTraps() {
+      const select = document.getElementById("trap-select");
+      select.innerHTML = "";
+      traps.forEach((trap, i) => {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = trap.query;
+        select.appendChild(opt);
+      });
+      select.onchange = () => runTrap();
+      await runTrap();
+    }
+
+    async function runTrap() {
+      const trap = traps[Number(document.getElementById("trap-select").value)];
+      const result = await trapLiveSession(sessionId, trap.query);
+      const badge = result.passed
+        ? '<span class="badge ok">OK</span>'
+        : '<span class="badge ko">KO</span>';
+      document.getElementById("trap-result").innerHTML = `
+        ${badge}
+        <p><strong>Attendu :</strong> <code>${trap.expected}</code></p>
+        <p><strong>Top-1 :</strong> ${result.results?.[0]?.content || "—"}</p>`;
+    }
+
+    function play() {
+      if (!sessionId || playing) return;
+      playing = true;
+      btnPlay.disabled = true;
+      btnPause.disabled = false;
+      statusEl.textContent = "Conversation MCP en cours…";
+      timer = setInterval(async () => {
+        try {
+          await processStep();
+        } catch (err) {
+          stop();
+          statusEl.textContent = err.message;
+          statusEl.className = "pill warn";
+        }
+      }, 450);
+    }
+
+    function stop() {
+      playing = false;
+      clearInterval(timer);
+      btnPlay.disabled = true;
+      btnPause.disabled = true;
+    }
+
+    async function reset() {
+      stop();
+      chatLog.innerHTML = "";
+      labels = [];
+      naiveSeries = [];
+      memorySeries = [];
+      initChart();
+      document.getElementById("final-banner").style.display = "none";
+      document.getElementById("trap-section").style.display = "none";
+      document.getElementById("turn-label").textContent = "0";
+      document.getElementById("naive-live").textContent = "0";
+      document.getElementById("memory-live").textContent = "0";
+      btnPlay.disabled = false;
+
+      const session = await createLiveSession(50, true);
+      sessionId = session.id;
+      document.getElementById("turn-total").textContent = String(session.total_turns);
+      statusEl.textContent = "Session live prete — lancez la conversation";
+      statusEl.className = "pill ok";
+    }
+
+    btnPlay.onclick = play;
+    btnPause.onclick = stop;
+    btnReset.onclick = reset;
+
+    async function boot() {
+      initChart();
+      traps = await fetchTraps();
+      try {
+        await reset();
+      } catch {
+        statusEl.textContent = "Lancez : python dashboard/server.py";
+        statusEl.className = "pill warn";
+        btnPlay.disabled = true;
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>

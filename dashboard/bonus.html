@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MemBridge — Bonus</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="ui.js"></script>
+</head>
+<body class="page-bonus">
+  <div class="ambient" aria-hidden="true">
+    <div class="grid-overlay"></div>
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <h1>MemBridge</h1>
+          <p>Différenciation</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="live.html">Arena live</a>
+        <a href="mcp.html">Console MCP</a>
+        <a href="index.html">Benchmark</a>
+        <a href="bonus.html" class="active">Bonus</a>
+        <a href="demo.html">Atelier</a>
+      </nav>
+      <div class="sidebar-footer">§10 sujet · multi-agent · persistance</div>
+    </aside>
+
+    <main class="main">
+      <section class="hero reveal visible">
+        <p class="hero-eyebrow">Au-delà du minimum</p>
+        <h2>Ce qui nous distingue</h2>
+        <p>
+          Mémoire partagée, hiérarchie de pertinence, oubli intelligent
+          et persistance inter-sessions — démontrables en live.
+        </p>
+        <div class="status-bar">
+          <span class="pill" id="bonus-status">Chargement…</span>
+        </div>
+      </section>
+
+      <div class="feature-grid" id="feature-grid"></div>
+
+      <h2 class="section-title">Mémoire partagée — Agent A écrit, Agent B relit</h2>
+      <div class="card">
+        <pre id="multi-agent-report">Lancez : python -m demo.multi_agent</pre>
+      </div>
+
+      <h2 class="section-title">Persistance — contexte retrouvé le lendemain</h2>
+      <div class="card">
+        <pre id="persistence-report">Lancez : python -m demo.persistence</pre>
+      </div>
+
+      <h2 class="section-title">Préparer toute la démo jury</h2>
+      <div class="card commands">
+        <div class="command-row"><span>All-in-one</span> python -m demo.presentation</div>
+        <div class="command-row"><span>Serveur</span> python dashboard/server.py --open</div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { fetchReport } from "./app.js";
+
+    const features = [
+      {
+        id: "shared",
+        title: "Mémoire partagée",
+        desc: "Agent support écrit, superviseur audite via memory_search sans historique.",
+        key: "shared_memory_ready",
+      },
+      {
+        id: "hierarchy",
+        title: "Hiérarchie de pertinence",
+        desc: "Classement sémantique + récence + importance + fréquence d'accès.",
+        key: "hierarchy_ranking",
+      },
+      {
+        id: "forget",
+        title: "Oubli intelligent",
+        desc: "Archive automatique des échanges exchange obsolètes (prune_stale).",
+        key: "intelligent_forgetting",
+      },
+      {
+        id: "persist",
+        title: "Persistance inter-sessions",
+        desc: "SQLite sur disque — l'agent retrouve le contexte après redémarrage.",
+        key: "persistence_ready",
+      },
+    ];
+
+    async function loadJson(path) {
+      try {
+        const res = await fetch(`${path}?t=${Date.now()}`);
+        if (!res.ok) return null;
+        return res.json();
+      } catch {
+        return null;
+      }
+    }
+
+    function renderFeatures(bonus, multi, persistence) {
+      const grid = document.getElementById("feature-grid");
+      grid.innerHTML = features
+        .map((f) => {
+          let active = bonus?.[f.key];
+          if (f.id === "shared" && multi) active = true;
+          if (f.id === "persist" && persistence) active = true;
+          return `
+            <div class="feature-card">
+              <h4>${f.title}</h4>
+              <p class="hint">${f.desc}</p>
+              <p class="status">${active ? "Implémenté et démontrable" : "En attente de données"}</p>
+            </div>`;
+        })
+        .join("");
+    }
+
+    async function boot() {
+      const report = await fetchReport();
+      const multi = await loadJson("/demo/results/multi_agent_report.json");
+      const persistence = await loadJson("/demo/results/persistence_report.json");
+
+      renderFeatures(report?.data?.bonus, multi, persistence);
+
+      if (multi) {
+        document.getElementById("multi-agent-report").textContent = JSON.stringify(
+          {
+            agent_a: multi.agent_a,
+            agent_b: multi.agent_b,
+            audit: `${multi.audit_passed}/${multi.audit_total}`,
+            summary: multi.summary?.summary,
+            stats: multi.stats,
+          },
+          null,
+          2
+        );
+      }
+
+      if (persistence) {
+        document.getElementById("persistence-report").textContent = JSON.stringify(
+          persistence,
+          null,
+          2
+        );
+      }
+
+      const status = document.getElementById("bonus-status");
+      if (multi && persistence) {
+        status.textContent = "Toutes les démos bonus sont prêtes";
+        status.className = "pill ok";
+      } else {
+        status.textContent = "python -m demo.presentation pour générer les rapports";
+        status.className = "pill warn";
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>
