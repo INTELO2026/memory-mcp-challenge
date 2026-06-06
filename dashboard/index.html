@@ -46,6 +46,15 @@
     Économie : <span id="savings">—</span>
   </div>
 
+  <div class="card">
+    <h2>Contexte par tour — le naïf grimpe, MemBridge reste plat</h2>
+    <canvas id="chart" width="800" height="200"></canvas>
+    <p style="color:#94a3b8;font-size:0.85rem;margin-top:0.5rem">
+      <span style="color:var(--red)">■</span> naïf (tout l'historique) &nbsp;&nbsp;
+      <span style="color:var(--green)">■</span> MemBridge (résumé + souvenirs)
+    </p>
+  </div>
+
   <div class="card quality">
     <h2>Qualité — questions pièges</h2>
     <p><span id="quality-score">—</span> / <span id="quality-total">—</span> réussies</p>
@@ -58,17 +67,41 @@
   </div>
 
   <script>
-    // TODO équipe : brancher sur les résultats live du benchmark
+    function drawChart(naive, memory) {
+      const c = document.getElementById('chart');
+      if (!c || !naive || !memory) return;
+      const ctx = c.getContext('2d');
+      const W = c.width, H = c.height, pad = 32;
+      ctx.clearRect(0, 0, W, H);
+      const max = Math.max(...naive, ...memory, 1);
+      const n = Math.max(naive.length, memory.length, 2);
+      const x = i => pad + (W - 2 * pad) * (i / (n - 1));
+      const y = v => H - pad - (H - 2 * pad) * (v / max);
+
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pad, pad); ctx.lineTo(pad, H - pad); ctx.lineTo(W - pad, H - pad); ctx.stroke();
+
+      const line = (arr, color) => {
+        ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.beginPath();
+        arr.forEach((v, i) => { const px = x(i), py = y(v); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+        ctx.stroke();
+      };
+      line(naive, '#ef4444');
+      line(memory, '#22c55e');
+    }
+
     async function loadReport() {
       try {
         const res = await fetch('../benchmark/results/report.json');
         const data = await res.json();
         document.getElementById('naive-tokens').textContent = data.naive.total_tokens.toLocaleString();
         document.getElementById('memory-tokens').textContent = data.memory.total_tokens.toLocaleString();
-        document.getElementById('savings').textContent = `-${data.savings_pct}% tokens`;
+        const eur = data.cost ? ` (≈ ${data.cost.saved_eur} € économisés)` : '';
+        document.getElementById('savings').textContent = `-${data.savings_pct}% tokens${eur}`;
         document.getElementById('quality-score').textContent = data.quality.passed;
         document.getElementById('quality-total').textContent = data.quality.total;
         document.getElementById('quality-bar').style.width = data.quality.score_pct + '%';
+        drawChart(data.naive.per_turn, data.memory.per_turn);
         document.getElementById('report').textContent = JSON.stringify(data, null, 2);
       } catch {
         document.getElementById('report').textContent =

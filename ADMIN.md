@@ -20,14 +20,19 @@ git commit -m "Tests cachés finale memory-mcp"
 gh repo create INTELO2026/memory-mcp-eval --private --source=. --push
 ```
 
-### 2. Secrets organisation INTELO2026
+### 2. Secrets repo `memory-mcp-challenge`
 
-Dans **Settings → Secrets and variables → Actions** :
+Dans **Settings → Secrets and variables → Actions** du repo (ou org si admin) :
 
 | Secret | Valeur |
 |--------|--------|
 | `EVAL_REPO_PAT` | PAT fine-grained, accès lecture sur `memory-mcp-eval` uniquement |
-| `EVAL_SEED` | Entier aléatoire (ex: `847291`) — **ne pas communiquer aux équipes** |
+| `EVAL_SEED` | Entier aléatoire — **ne pas communiquer aux équipes** |
+
+```bash
+gh secret set EVAL_SEED --repo INTELO2026/memory-mcp-challenge --body "847291"
+gh secret set EVAL_REPO_PAT --repo INTELO2026/memory-mcp-challenge --body "ghp_..."
+```
 
 ### 3. Branch protection sur `main`
 
@@ -39,13 +44,24 @@ Exiger les checks :
 
 ## Tester localement comme la CI
 
-```bash
-# Tests publics (régression doit échouer sur le squelette)
-PYTHONPATH=src:. pytest tests/test_regression.py -v
+```powershell
+cd "d:\Projet\Hackathon IT"
+pip install -e ".[dev]"
 
-# Tests cachés (organisateurs)
-FINALE_EVAL=1 EVAL_SEED=847291 PYTHONPATH=src:. pytest eval-private/hidden_tests/ -v
+# Tests publics (régression doit échouer sur le squelette)
+$env:PYTHONPATH = "src;."
+pytest tests/test_regression.py -v
+
+# Tests cachés — depuis eval-private (détection auto du repo parent)
+cd eval-private
+$env:FINALE_EVAL = "1"
+$env:EVAL_SEED = "238216"
+pytest hidden_tests/ -v
 ```
+
+> **Erreur `No module named 'benchmark'`** : vous lancez pytest depuis
+> `eval-private` sans avoir installé le repo challenge. Faites d'abord
+> `pip install -e ".[dev]"` depuis la racine `Hackathon IT`.
 
 ## Modifier les seuils
 

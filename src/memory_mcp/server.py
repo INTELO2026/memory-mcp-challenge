@@ -1,18 +1,30 @@
-"""Serveur MCP exposant memory_store, memory_search, memory_summarize, memory_stats."""
+"""Serveur MCP exposant memory_store, memory_search, memory_summarize, memory_stats.
+
+Un agent externe (Claude Desktop, un client MCP maison, etc.) se connecte en
+stdio et appelle les 4 outils. La mémoire vit en RAM par défaut ; si la variable
+d'environnement ``MEMORY_DB_PATH`` est définie, elle est persistée sur disque
+(piste bonus « persistance entre sessions »).
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
+from memory_mcp.storage import MemoryStore
 from memory_mcp.tools import MemoryTools
 
+# Budget par défaut du résumé, aligné sur le cœur mémoire (tools.memory_summarize).
+SUMMARY_DEFAULT_MAX_CHARS = 180
+
+_DB_PATH = os.getenv("MEMORY_DB_PATH", ":memory:")
 app = Server("memory-mcp")
-tools_handler = MemoryTools()
+tools_handler = MemoryTools(MemoryStore(_DB_PATH))
 
 
 @app.list_tools()
@@ -34,7 +46,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="memory_search",
-            description="Recherche sémantique dans la mémoire.",
+            description="Recherche sémantique dans la mémoire (comprend les paraphrases).",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -51,7 +63,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="memory_summarize",
-            description="Résume compressé de l'historique d'une session.",
+            description="Résumé compressé de l'historique d'une session, conservant les faits.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -59,7 +71,7 @@ async def list_tools() -> list[Tool]:
                     "max_chars": {
                         "type": "integer",
                         "description": "Taille max du résumé",
-                        "default": 500,
+                        "default": SUMMARY_DEFAULT_MAX_CHARS,
                     },
                 },
             },
@@ -72,31 +84,48 @@ async def list_tools() -> list[Tool]:
     ]
 
 
-@app.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+def _dispatch(name: str, arguments: dict) -> dict:
+    """Aiguille un appel d'outil vers le handler mémoire correspondant.
+
+    Lève ``KeyError`` si un argument requis manque, ``ValueError`` si l'outil
+    est inconnu — ces cas sont transformés en réponse d'erreur propre par
+    ``call_tool`` (le serveur ne doit jamais planter sur une entrée invalide).
+    """
     if name == "memory_store":
-        result = tools_handler.memory_store(
+        if "content" not in arguments:
+            raise KeyError("content")
+        return tools_handler.memory_store(
             content=arguments["content"],
             tags=arguments.get("tags"),
             session=arguments.get("session", "default"),
             turn=arguments.get("turn", 0),
         )
-    elif name == "memory_search":
-        result = tools_handler.memory_search(
+    if name == "memory_search":
+        if "query" not in arguments:
+            raise KeyError("query")
+        return tools_handler.memory_search(
             query=arguments["query"],
             top_k=arguments.get("top_k", 5),
             session=arguments.get("session"),
         )
-    elif name == "memory_summarize":
-        result = tools_handler.memory_summarize(
+    if name == "memory_summarize":
+        return tools_handler.memory_summarize(
             session=arguments.get("session", "default"),
-            max_chars=arguments.get("max_chars", 500),
+            max_chars=arguments.get("max_chars", SUMMARY_DEFAULT_MAX_CHARS),
         )
-    elif name == "memory_stats":
-        result = tools_handler.memory_stats()
-    else:
-        raise ValueError(f"Outil inconnu : {name}")
+    if name == "memory_stats":
+        return tools_handler.memory_stats()
+    raise ValueError(f"Outil inconnu : {name}")
 
+
+@app.call_tool()
+async def call_tool(name: str, arguments: dict | None) -> list[TextContent]:
+    try:
+        result = _dispatch(name, arguments or {})
+    except KeyError as exc:
+        result = {"error": f"Argument requis manquant : {exc.args[0]}", "tool": name}
+    except ValueError as exc:
+        result = {"error": str(exc), "tool": name}
     return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
 
 

@@ -45,6 +45,10 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
+> Au premier appel de recherche/stockage, le modèle d'embeddings (BGE-M3) est
+> téléchargé puis mis en cache. Pour des tests rapides sans modèle, exporter
+> `MEMORY_EMBEDDER=bow` (repli lexical).
+
 ## Utilisation
 
 ```bash
@@ -59,16 +63,46 @@ python -m benchmark.harness
 
 # Serveur MCP
 memory-mcp
+
+# Vérifier qu'un agent externe peut se connecter (client MCP en stdio)
+python scripts/mcp_smoke_client.py
 ```
 
 ## Les 4 outils MCP
 
 | Outil | Description |
 |-------|-------------|
-| `memory_store(content, tags)` | Stocke un fragment de mémoire |
-| `memory_search(query, top_k)` | Recherche **sémantique** (paraphrases !) |
-| `memory_summarize(session)` | Résumé **compressé** conservant les faits |
+| `memory_store(content, tags, session, turn)` | Stocke un fragment de mémoire |
+| `memory_search(query, top_k, session)` | Recherche **sémantique** (paraphrases !) |
+| `memory_summarize(session, max_chars)` | Résumé **compressé** conservant les faits |
 | `memory_stats()` | Tokens consommés |
+
+## Connexion d'un agent externe (MCP)
+
+Le serveur parle le protocole MCP en **stdio** : n'importe quel client MCP peut
+le lancer et appeler les outils. Le script `scripts/mcp_smoke_client.py` en est
+la preuve (il démarre le serveur, liste les outils, appelle les quatre).
+
+Exemple de configuration pour un client type (Claude Desktop / agent MCP) :
+
+```json
+{
+  "mcpServers": {
+    "memory-mcp": {
+      "command": "python",
+      "args": ["-m", "memory_mcp.server"]
+    }
+  }
+}
+```
+
+Variables d'environnement reconnues par le serveur :
+
+| Variable | Effet |
+|----------|-------|
+| `MEMORY_EMBEDDER` | `auto` (défaut), `st` (sentence-transformers), `bow` (repli rapide) |
+| `MEMORY_EMBEDDER_MODEL` | Nom du modèle d'embeddings (défaut : BGE-M3) |
+| `MEMORY_DB_PATH` | Chemin SQLite pour **persister** la mémoire entre sessions (défaut : RAM) |
 
 ## Critères de merge (PR)
 

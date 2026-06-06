@@ -1,6 +1,7 @@
 """Compteur de tokens consommés (axe coût du benchmark)."""
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 
 @dataclass
@@ -46,12 +47,17 @@ def reset_stats() -> None:
     _stats = TokenStats()
 
 
-def count_tokens(text: str) -> int:
-    """Estimation tokens via tiktoken (gpt-4o-mini) ou fallback caractères/4."""
-    try:
-        import tiktoken
+@lru_cache(maxsize=1)
+def _encoder():
+    """Encodeur tiktoken chargé une seule fois (coûteux à instancier)."""
+    import tiktoken
 
-        enc = tiktoken.get_encoding("cl100k_base")
-        return len(enc.encode(text))
+    return tiktoken.get_encoding("cl100k_base")
+
+
+def count_tokens(text: str) -> int:
+    """Estimation tokens via tiktoken (cl100k_base) ou fallback caractères/4."""
+    try:
+        return len(_encoder().encode(text))
     except Exception:
         return max(1, len(text) // 4)
