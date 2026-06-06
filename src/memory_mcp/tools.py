@@ -50,13 +50,34 @@ class MemoryTools:
         memory_id = self.store.store(content=content, tags=tags, session=session, turn=turn)
         return {"id": memory_id, "stored": True, "tags": tags or []}
 
-    def memory_search(self, query: str, top_k: int = 5, session: str | None = None) -> dict:
-        """Recherche sémantique dans la mémoire."""
+    def memory_search(
+        self,
+        query: str,
+        top_k: int = 5,
+        session: str | None = None,
+        *,
+        shared_session: str | None = None,
+        recency_weight: float = 0.0,
+        frequency_weight: float = 0.0,
+    ) -> dict:
+        """Recherche sémantique dans la mémoire.
+
+        Options bonus (§10) : ``shared_session`` pour une mémoire partagée entre
+        agents, ``recency_weight``/``frequency_weight`` pour une hiérarchie de
+        pertinence (récence + fréquence d'accès). Inactives par défaut.
+        """
         stats = get_stats()
         stats.search_calls += 1
         stats.add_input(count_tokens(query))
 
-        hits = self.store.search(query=query, top_k=top_k, session=session)
+        hits = self.store.search(
+            query=query,
+            top_k=top_k,
+            session=session,
+            shared_session=shared_session,
+            recency_weight=recency_weight,
+            frequency_weight=frequency_weight,
+        )
         results = [
             {
                 "id": h.id,
@@ -117,6 +138,12 @@ class MemoryTools:
             "source_turns": len(entries),
             "compressed_chars": len(summary),
         }
+
+    def memory_forget(self, session: str = "default", threshold: float = 0.97) -> dict:
+        """Oubli intelligent (§10) : purge les souvenirs redondants d'une session."""
+        before = self.store.count()
+        forgotten = self.store.prune_redundant(session=session, threshold=threshold)
+        return {"forgotten": forgotten, "remaining": before - forgotten, "session": session}
 
     def memory_stats(self) -> dict:
         """Retourne les statistiques de consommation tokens."""
