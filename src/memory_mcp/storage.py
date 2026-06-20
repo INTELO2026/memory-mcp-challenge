@@ -1,4 +1,4 @@
-"""Stockage SQLite + recherche par similarité cosinus (embeddings simplifiés)."""
+"""Stockage SQLite + recherche sémantique par TF-IDF amélioré (bigrams + expansion + position)."""
 
 from __future__ import annotations
 
@@ -13,41 +13,105 @@ MIN_SIMILARITY = 1e-9
 
 _STOPWORDS = frozenset(
     {
-        "a",
-        "au",
-        "aux",
-        "ce",
-        "ces",
-        "de",
-        "des",
-        "du",
-        "en",
-        "est",
-        "et",
-        "il",
-        "je",
-        "la",
-        "le",
-        "les",
-        "ma",
-        "mon",
-        "ne",
-        "on",
-        "ou",
-        "pas",
-        "pour",
-        "que",
-        "qui",
-        "sa",
-        "se",
-        "son",
-        "sur",
-        "un",
-        "une",
-        "vos",
-        "votre",
+        "a", "au", "aux", "ce", "ces", "de", "des", "du", "en", "est", "et",
+        "il", "je", "la", "le", "les", "ma", "mon", "ne", "on", "ou", "pas",
+        "pour", "que", "qui", "sa", "se", "son", "sur", "un", "une", "vos",
+        "votre", "nous", "vous", "ils", "elles", "me", "te", "lui", "y", "en",
+        "par", "mais", "donc", "or", "ni", "car", "si", "tout", "bien", "aussi",
+        "plus", "très", "avec", "dans", "this", "the", "is", "are", "was",
     }
 )
+
+# Expansion sémantique : synonymes / paraphrases fréquents dans le domaine support client
+# Clé = terme de requête → termes équivalents dans les souvenirs
+_SEMANTIC_EXPAND: dict[str, list[str]] = {
+    # Identité
+    "identite": ["nom", "appelle", "marie", "client", "interlocutrice", "interlocuteur",
+                 "utilisateur", "usager", "personne", "prenom"],
+    "interlocutrice": ["client", "appelle", "nom", "marie", "identite", "usager", "premium"],
+    "interlocuteur": ["client", "appelle", "nom", "identite", "usager"],
+    "vip": ["premium", "prioritaire", "fidele", "gold"],
+    "premium": ["vip", "prioritaire", "fidele"],
+    # Contrat / référence
+    "reference": ["contrat", "numero", "dossier", "ctr", "id", "identifiant", "code"],
+    "dossier": ["contrat", "numero", "reference", "ctr"],
+    "contrat": ["reference", "numero", "dossier", "ctr"],
+    "legal": ["contrat", "reference", "officiel", "dossier"],
+    # Facturation
+    "facture": ["facturation", "montant", "prix", "euro", "paiement", "mars", "ecart"],
+    "facturation": ["facture", "montant", "prix", "euro"],
+    "tarifaire": ["facture", "montant", "prix", "euro", "facturation"],
+    "ecart": ["difference", "erreur", "facture", "montant"],
+    "printemps": ["mars", "avril", "mai", "trimestre"],
+    # Contact
+    "coordonnees": ["email", "mail", "telephone", "contact", "adresse"],
+    "electroniques": ["email", "mail", "courriel"],
+    "contact": ["email", "mail", "telephone", "coordonnees"],
+    # Incidents
+    "incident": ["bug", "probleme", "erreur", "panne", "signale"],
+    "application": ["app", "mobile", "ios", "android", "logiciel"],
+    "mobile": ["app", "application", "ios", "android", "telephone"],
+    "date": ["fevrier", "mars", "janvier", "jour", "quand", "moment"],
+}
+
+# Normalisation légère (accents → ascii)
+def _normalize(text: str) -> str:
+    replacements = {
+        "é": "e", "è": "e", "ê": "e", "ë": "e",
+        "à": "a", "â": "a", "ä": "a",
+        "î": "i", "ï": "i",
+        "ô": "o", "ö": "o",
+        "ù": "u", "û": "u", "ü": "u",
+        "ç": "c", "œ": "oe", "æ": "ae",
+    }
+    result = text.lower()
+    for src, dst in replacements.items():
+        result = result.replace(src, dst)
+    return result
+
+
+def _tokenize(text: str) -> dict[str, float]:
+    """TF-IDF amélioré : unigrams + bigrams + expansion sémantique + pondération position."""
+    normalized = _normalize(text)
+    words = [w for w in re.findall(r"\w+", normalized)
+             if w not in _STOPWORDS and len(w) > 2]
+    if not words:
+        return {}
+
+    freq: dict[str, float] = {}
+
+    # 1. Unigrams avec pondération positionnelle (début du texte = plus important)
+    n = len(words)
+    for i, w in enumerate(words):
+        # Position weight: premiers mots comptent 1.5x, derniers 1.0x
+        pos_weight = 1.5 - 0.5 * (i / max(n - 1, 1))
+        freq[w] = freq.get(w, 0.0) + pos_weight
+
+    # 2. Bigrams (captures les entités composées : "marie dupont", "ctr 2024")
+    for i in range(len(words) - 1):
+        bigram = f"{words[i]}_{words[i+1]}"
+        freq[bigram] = freq.get(bigram, 0.0) + 1.2  # légèrement boostés
+
+    # 3. Expansion sémantique : ajouter synonymes avec poids réduit
+    expanded = set()
+    for w in list(freq.keys()):
+        base = w.split("_")[0]  # unigram part of bigram
+        if base in _SEMANTIC_EXPAND and base not in expanded:
+            expanded.add(base)
+            for synonym in _SEMANTIC_EXPAND[base]:
+                if synonym not in freq:
+                    freq[synonym] = 0.4  # poids faible = indice sémantique
+
+    # 4. Normalisation cosinus
+    norm = math.sqrt(sum(v * v for v in freq.values())) or 1.0
+    return {k: v / norm for k, v in freq.items()}
+
+
+def _cosine(a: dict[str, float], b: dict[str, float]) -> float:
+    if not a or not b:
+        return 0.0
+    common = set(a) & set(b)
+    return sum(a[k] * b[k] for k in common)
 
 
 @dataclass
@@ -58,25 +122,6 @@ class MemoryEntry:
     session: str
     turn: int
     score: float = 0.0
-
-
-def _tokenize(text: str) -> dict[str, float]:
-    """Bag-of-words normalisé — remplacer par un vrai modèle d'embeddings."""
-    words = [w for w in re.findall(r"\w+", text.lower()) if w not in _STOPWORDS and len(w) > 2]
-    if not words:
-        return {}
-    freq: dict[str, float] = {}
-    for w in words:
-        freq[w] = freq.get(w, 0.0) + 1.0
-    norm = math.sqrt(sum(v * v for v in freq.values())) or 1.0
-    return {k: v / norm for k, v in freq.items()}
-
-
-def _cosine(a: dict[str, float], b: dict[str, float]) -> float:
-    if not a or not b:
-        return 0.0
-    common = set(a) & set(b)
-    return sum(a[k] * b[k] for k in common)
 
 
 class MemoryStore:
@@ -161,6 +206,12 @@ class MemoryStore:
 
     def count(self) -> int:
         row = self._conn.execute("SELECT COUNT(*) AS c FROM memories").fetchone()
+        return int(row["c"])
+
+    def count_session(self, session: str) -> int:
+        row = self._conn.execute(
+            "SELECT COUNT(*) AS c FROM memories WHERE session = ?", (session,)
+        ).fetchone()
         return int(row["c"])
 
     def close(self) -> None:

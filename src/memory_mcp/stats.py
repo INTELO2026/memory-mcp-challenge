@@ -47,11 +47,10 @@ def reset_stats() -> None:
 
 
 def count_tokens(text: str) -> int:
-    """Estimation tokens via tiktoken (gpt-4o-mini) ou fallback caractères/4."""
-    try:
-        import tiktoken
+    """Estimation déterministe — identique Windows/Linux/macOS.
 
-        enc = tiktoken.get_encoding("cl100k_base")
-        return len(enc.encode(text))
-    except Exception:
-        return max(1, len(text) // 4)
+    Utilise len(utf-8 bytes) // 4 : approximation standard GPT pour texte
+    multilingue. Ne dépend d'aucun réseau ni modèle externe → résultats
+    reproductibles sur toutes les plateformes.
+    """
+    return max(1, len(text.encode("utf-8")) // 4)
